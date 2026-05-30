@@ -26,10 +26,11 @@ pnpm install
 supabase start                       # boots local Postgres on :54322
 cp .env.local.example .env.local     # then paste the URLs printed by `supabase start`
 pnpm db:migrate                      # applies db/migrations/*.sql, seeds the singleton
+pnpm create-group --username demo --password "correct horse battery staple"
 pnpm dev                             # http://localhost:3000
 ```
 
-Open <http://localhost:3000> — the home page reports **DB connected** once the local Postgres is reachable.
+Open <http://localhost:3000> — you will be redirected to `/login`. Use the group credentials you seeded with `pnpm create-group`. Once authenticated, the home page reports **DB connected** and shows the logged-in group name.
 
 **`.env.local`**
 
@@ -52,6 +53,7 @@ Mixing them breaks prepared statements.
 | `pnpm db:generate` | Drizzle: generate migration from schema diff |
 | `pnpm db:migrate` | Apply pending `db/migrations/*.sql` files (forward-only) |
 | `pnpm db:studio` | Drizzle browser at <http://localhost:4983> |
+| `pnpm create-group --username … --password …` | Seed a group account (admin-driven; no public signup) |
 
 **Troubleshooting**
 
