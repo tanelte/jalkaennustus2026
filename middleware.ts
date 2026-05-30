@@ -1,6 +1,8 @@
 /**
  * Edge middleware: protects routes via an explicit unauthenticated-redirect to
- * /login, and applies an in-memory rate-limit stub on the credentials callback.
+ * /login, redirects authenticated requests without a selected user to
+ * /select-user, and applies an in-memory rate-limit stub on the credentials
+ * callback.
  *
  * The rate-limit stub is local-dev-grade only — production uses Upstash (S16).
  */
@@ -9,11 +11,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { authConfig } from '@/lib/auth/config';
 import { log } from '@/lib/log';
 import { increment, peek } from '@/lib/ratelimit';
+import {
+  CURRENT_USER_COOKIE,
+  getCurrentUserSecret,
+  verifyUserId,
+} from '@/lib/sign-user-id';
 
 const { auth } = NextAuth(authConfig);
 
 const CREDENTIALS_CALLBACK_PATH = '/api/auth/callback/credentials';
 const PUBLIC_PATH_PREFIXES = ['/login', '/api/auth'];
+const SELECT_USER_PATH = '/select-user';
 
 function extractIp(req: NextRequest): string {
   const xff = req.headers.get('x-forwarded-for');
@@ -27,7 +35,7 @@ function isPublic(pathname: string): boolean {
   );
 }
 
-export default auth((req) => {
+export default auth(async (req) => {
   const { pathname } = req.nextUrl;
 
   if (req.method === 'POST' && pathname === CREDENTIALS_CALLBACK_PATH) {
@@ -45,6 +53,18 @@ export default auth((req) => {
     url.pathname = '/login';
     url.search = '';
     return NextResponse.redirect(url);
+  }
+
+  // Authenticated request: require a selected user before any non-/select-user page.
+  if (req.auth && pathname !== SELECT_USER_PATH && !isPublic(pathname)) {
+    const cookieValue = req.cookies.get(CURRENT_USER_COOKIE)?.value;
+    const userId = await verifyUserId(cookieValue, getCurrentUserSecret());
+    if (!userId) {
+      const url = req.nextUrl.clone();
+      url.pathname = SELECT_USER_PATH;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
   }
 
   return undefined;
