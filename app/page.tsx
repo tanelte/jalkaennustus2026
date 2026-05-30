@@ -1,5 +1,4 @@
-import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import Link from 'next/link';
 import { auth, signOut } from '@/lib/auth';
 import { clearCurrentUserCookie, getCurrentUserId } from '@/lib/current-user';
@@ -90,6 +89,13 @@ export default async function Home() {
           <p className="mt-1 text-red-700">DB error: {status.error}</p>
         )}
       </section>
+      {session?.user?.group_id && (
+        <nav className="mt-6">
+          <Link href="/leaderboard" className="text-sm underline">
+            Edetabel
+          </Link>
+        </nav>
+      )}
     </main>
   );
 }
