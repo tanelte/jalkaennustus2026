@@ -1,0 +1,28 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
+# Next.js / Vercel
+.next/
+out/
+.vercel/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Vitest
+coverage/
+*.lcov
+
+# Supabase CLI
+.supabase/
+supabase/.temp/
+
+# Drizzle
+drizzle/
+
+# Env files (keep .env.local.example)
+.env
+.env.*
+!.env.local.example
