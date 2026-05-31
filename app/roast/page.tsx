@@ -44,9 +44,10 @@ export default async function RoastPage() {
         >
           <p className="font-medium">Roast avaneb pärast finaali.</p>
           <p className="mt-2 text-sm">
-            Kui finaali tulemus on sees, koondame siin sinu turniiri parima ja
-            halvima ennustuse, mängu mille kogu grupp valesti pakkus, ning
-            kõik ennustused kus sina olid grupis ainus, kes õigesti pakkus.
+            Kui finaali tulemus on sees, koondame siin sinu turniiri parima
+            ennustuse, mängud kus ainult sina pakkusid valesti, mängud mille
+            kogu grupp valesti pakkus, ning ennustused kus sina olid grupis
+            ainus, kes õigesti pakkus.
           </p>
         </section>
       </main>
@@ -80,7 +81,11 @@ export default async function RoastPage() {
 
       <section className="mt-6 space-y-4">
         <RoastBlock heading="🏆 Parim ennustus" pick={roast.bestPick} emptyLabel="—" />
-        <RoastBlock heading="💀 Halvim ennustus" pick={roast.worstPick} emptyLabel="—" />
+        <RoastListBlock
+          heading="🤦 Ainult sina pakkusid valesti"
+          items={roast.soloWrong}
+          emptyLabel="Mitte ühtegi sellist hetke — alati oli vähemalt veel keegi, kes mööda pani."
+        />
         <RoastListBlock
           heading="🙈 Kogu grupp pakkus valesti"
           items={roast.groupWrong}
@@ -167,8 +172,11 @@ function renderPlainText(input: {
     `Jalkaennustus WC2026 — ${focusUsername} (${groupName})`,
     '',
     `Parim ennustus: ${formatPick(roast.bestPick)}`,
-    `Halvim ennustus: ${formatPick(roast.worstPick)}`,
   ];
+  if (roast.soloWrong.length > 0) {
+    lines.push('', 'Ainult mina pakkusin valesti (kõik teised said punkti):');
+    for (const item of roast.soloWrong) lines.push(`- ${item.label}`);
+  }
   if (roast.groupWrong.length > 0) {
     lines.push('', 'Kogu grupp pakkus valesti:');
     for (const item of roast.groupWrong) lines.push(`- ${item.label}`);

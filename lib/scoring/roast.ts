@@ -17,7 +17,8 @@ export interface PredictionRow {
    * Stable identifier for the predicted target — typically game_id (for
    * match/knockout/final) or `${tournamentId}:${groupLetter}` for best-thirds
    * or `${tournamentId}:Q${position}` for trivia. Same target across players
-   * MUST yield the same predictionId so group-wrong / solo-correct can compare.
+   * MUST yield the same predictionId so group-wrong / solo-correct / solo-wrong
+   * can compare.
    */
   predictionId: string;
   userId: string;
@@ -37,8 +38,18 @@ export interface RoastPick {
 
 export interface RoastResult {
   bestPick: RoastPick | null;
-  worstPick: RoastPick | null;
+  /**
+   * Picks where the focus user scored zero AND every other player in the
+   * group who made the same prediction scored points. "Everyone else nailed
+   * it, you didn't." Requires at least one other predictor.
+   */
+  soloWrong: RoastPick[];
+  /** Picks where every player in the group (focus + others) scored zero. */
   groupWrong: RoastPick[];
+  /**
+   * Picks where the focus user scored points AND every other player who made
+   * the same prediction scored zero. Requires at least one other predictor.
+   */
   soloCorrect: RoastPick[];
 }
 
@@ -51,44 +62,49 @@ export function buildRoast(input: RoastInput): RoastResult {
   const { focusUserId, predictions } = input;
 
   const focusRows = predictions.filter((p) => p.userId === focusUserId);
-
-  const bestPick = pickByExtreme(focusRows, 'max');
-  const worstPick = pickByExtreme(focusRows, 'min');
+  const bestPick = pickHighestScoring(focusRows);
 
   const byPrediction = groupByPrediction(predictions);
 
   const groupWrong: RoastPick[] = [];
   const soloCorrect: RoastPick[] = [];
+  const soloWrong: RoastPick[] = [];
 
   for (const [, rows] of byPrediction) {
     const focusRow = rows.find((r) => r.userId === focusUserId);
     if (!focusRow) continue;
 
     const others = rows.filter((r) => r.userId !== focusUserId);
-    const focusPoints = nonNegative(focusRow.points);
-    const allOthersScoredZero = others.length > 0 && others.every((r) => nonNegative(r.points) === 0);
+    if (others.length === 0) continue;
 
-    if (focusPoints === 0 && allOthersScoredZero) {
+    const focusPoints = nonNegative(focusRow.points);
+    const allOthersZero = others.every((r) => nonNegative(r.points) === 0);
+    const allOthersScored = others.every((r) => nonNegative(r.points) > 0);
+
+    if (focusPoints === 0 && allOthersZero) {
       groupWrong.push(toRoastPick(focusRow));
-    } else if (focusPoints > 0 && allOthersScoredZero) {
+    } else if (focusPoints > 0 && allOthersZero) {
       soloCorrect.push(toRoastPick(focusRow));
+    } else if (focusPoints === 0 && allOthersScored) {
+      soloWrong.push(toRoastPick(focusRow));
     }
   }
 
   groupWrong.sort(compareByIdentity);
   soloCorrect.sort(compareByIdentity);
+  soloWrong.sort(compareByIdentity);
 
-  return { bestPick, worstPick, groupWrong, soloCorrect };
+  return { bestPick, soloWrong, groupWrong, soloCorrect };
 }
 
-function pickByExtreme(rows: readonly PredictionRow[], mode: 'max' | 'min'): RoastPick | null {
+function pickHighestScoring(rows: readonly PredictionRow[]): RoastPick | null {
   if (rows.length === 0) return null;
   let best = rows[0]!;
   for (let i = 1; i < rows.length; i += 1) {
     const candidate = rows[i]!;
     const cPoints = nonNegative(candidate.points);
     const bPoints = nonNegative(best.points);
-    const winsOnPoints = mode === 'max' ? cPoints > bPoints : cPoints < bPoints;
+    const winsOnPoints = cPoints > bPoints;
     const tieBreak = cPoints === bPoints && compareByIdentity(candidate, best) < 0;
     if (winsOnPoints || tieBreak) best = candidate;
   }
