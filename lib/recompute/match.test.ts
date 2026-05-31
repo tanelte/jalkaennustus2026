@@ -143,7 +143,7 @@ describe('computeMatchRescoreInputs - rescore paths', () => {
 });
 
 describe('computeMatchRescoreInputs - knockout branch', () => {
-  it('NORMAL_TIME home win → 1A regardless of margin', () => {
+  it('R32 NORMAL_TIME home win → 1A awards round weights (exact 8, winner 4)', () => {
     const out = computeMatchRescoreInputs(
       game({
         stage_code: 'r32',
@@ -160,13 +160,38 @@ describe('computeMatchRescoreInputs - knockout branch', () => {
       kind: 'rescore',
       result_code: '1A',
       rows: [
-        { user_game_id: 'ug-exact', points: 5 },
-        { user_game_id: 'ug-winner-wrong-suffix', points: 3 },
+        { user_game_id: 'ug-exact', points: 8 },
+        { user_game_id: 'ug-winner-wrong-suffix', points: 4 },
       ],
     });
   });
 
-  it('EXTRA_TIME away win → 2B', () => {
+  it('R16 NORMAL_TIME exact and winner predictions award 14 / 7', () => {
+    const out = computeMatchRescoreInputs(
+      game({
+        stage_code: 'r16',
+        score_home: 2,
+        score_away: 0,
+        finish_type: 'NORMAL_TIME',
+      }),
+      [
+        { id: 'ug-exact', prediction: '1A' },
+        { id: 'ug-winner', prediction: '1B' },
+        { id: 'ug-miss', prediction: '2A' },
+      ],
+    );
+    expect(out).toEqual({
+      kind: 'rescore',
+      result_code: '1A',
+      rows: [
+        { user_game_id: 'ug-exact', points: 14 },
+        { user_game_id: 'ug-winner', points: 7 },
+        { user_game_id: 'ug-miss', points: 0 },
+      ],
+    });
+  });
+
+  it('QF EXTRA_TIME away win → 2B awards round weights (exact 22)', () => {
     const out = computeMatchRescoreInputs(
       game({
         stage_code: 'qf',
@@ -179,11 +204,11 @@ describe('computeMatchRescoreInputs - knockout branch', () => {
     expect(out).toEqual({
       kind: 'rescore',
       result_code: '2B',
-      rows: [{ user_game_id: 'ug-1', points: 5 }],
+      rows: [{ user_game_id: 'ug-1', points: 22 }],
     });
   });
 
-  it('PENALTIES home win via shootout score → 1B', () => {
+  it('SF PENALTIES home win via shootout score → 1B awards round weights (exact 35)', () => {
     const out = computeMatchRescoreInputs(
       game({
         stage_code: 'sf',
@@ -191,12 +216,18 @@ describe('computeMatchRescoreInputs - knockout branch', () => {
         score_away: 3,
         finish_type: 'PENALTIES',
       }),
-      [{ id: 'ug-1', prediction: '1B' }],
+      [
+        { id: 'ug-exact', prediction: '1B' },
+        { id: 'ug-winner-wrong-mode', prediction: '1A' },
+      ],
     );
     expect(out).toEqual({
       kind: 'rescore',
       result_code: '1B',
-      rows: [{ user_game_id: 'ug-1', points: 5 }],
+      rows: [
+        { user_game_id: 'ug-exact', points: 35 },
+        { user_game_id: 'ug-winner-wrong-mode', points: 18 },
+      ],
     });
   });
 

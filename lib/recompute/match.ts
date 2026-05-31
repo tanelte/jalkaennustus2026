@@ -3,12 +3,28 @@ import { db } from '@/lib/db';
 import { games, user_games } from '@/db/schema';
 import { mapFeedToResultCode } from '@/lib/scoring/result-code';
 import { mapKnockoutFeedToResultCode } from '@/lib/scoring/result-code-knockout';
-import { scoreMatchPrediction } from '@/lib/scoring/match-score';
+import { scoreMatchPrediction, type MatchScoreWeights } from '@/lib/scoring/match-score';
 import type {
   FeedStatus,
   KnockoutFinishType,
   ResultCode,
 } from '@/lib/scoring/types';
+import {
+  KNOCKOUT_EXACT_POINTS_BY_STAGE,
+  KNOCKOUT_WINNER_POINTS_BY_STAGE,
+  type KnockoutStageCode,
+} from '@/lib/scoring/weights';
+
+const KNOCKOUT_STAGE_CODES = new Set<string>(['r32', 'r16', 'qf', 'sf']);
+
+function resolveKnockoutWeights(stageCode: string): MatchScoreWeights | undefined {
+  if (!KNOCKOUT_STAGE_CODES.has(stageCode)) return undefined;
+  const code = stageCode as KnockoutStageCode;
+  return {
+    exactPoints: KNOCKOUT_EXACT_POINTS_BY_STAGE[code],
+    winnerPoints: KNOCKOUT_WINNER_POINTS_BY_STAGE[code],
+  };
+}
 
 export const GROUP_STAGE_CODE = 'group_matches';
 
@@ -114,6 +130,7 @@ export function computeMatchRescoreInputs(
     return { kind: 'cleared', reason };
   }
   const actual = outcome.code;
+  const weights = resolveKnockoutWeights(game.stage_code);
   const rows: RescoreRow[] = userGames.map((ug) => {
     if (!VALID_RESULT_CODES.includes(ug.prediction as ResultCode)) {
       return { user_game_id: ug.id, points: null };
@@ -122,6 +139,7 @@ export function computeMatchRescoreInputs(
       predicted: ug.prediction as ResultCode,
       actual,
       doublePoints: game.double_points,
+      weights,
     });
     return { user_game_id: ug.id, points };
   });

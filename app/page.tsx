@@ -78,6 +78,26 @@ export default async function Home() {
               Best-thirds (8 paremat kolmandat)
             </Link>
           </li>
+          <li>
+            <Link href="/predict/knockout/r32" className="text-blue-700 hover:underline">
+              R32 — 16-paari faasi ennustused
+            </Link>
+          </li>
+          <li>
+            <Link href="/predict/knockout/r16" className="text-blue-700 hover:underline">
+              R16 — veerandfinaali-eel
+            </Link>
+          </li>
+          <li>
+            <Link href="/predict/knockout/qf" className="text-blue-700 hover:underline">
+              Veerandfinaalid
+            </Link>
+          </li>
+          <li>
+            <Link href="/predict/knockout/sf" className="text-blue-700 hover:underline">
+              Poolfinaalid
+            </Link>
+          </li>
         </ul>
       </nav>
 

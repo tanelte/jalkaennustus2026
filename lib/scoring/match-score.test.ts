@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { scoreMatchPrediction } from './match-score';
 import type { ResultCode } from './types';
+import {
+  KNOCKOUT_EXACT_POINTS_BY_STAGE,
+  KNOCKOUT_WINNER_POINTS_BY_STAGE,
+  type KnockoutStageCode,
+} from './weights';
 
 const ALL_CODES: readonly ResultCode[] = ['1A', '1B', '2A', '2B', 'X'];
 
@@ -81,4 +86,59 @@ describe('scoreMatchPrediction — double-points spot checks', () => {
       scoreMatchPrediction({ predicted: '1A', actual: '2A', doublePoints: true }),
     ).toEqual({ points: 0, outcome: 'miss' });
   });
+});
+
+describe('scoreMatchPrediction — knockout per-round weights', () => {
+  const ROUNDS: readonly KnockoutStageCode[] = ['r32', 'r16', 'qf', 'sf'];
+
+  for (const round of ROUNDS) {
+    const weights = {
+      exactPoints: KNOCKOUT_EXACT_POINTS_BY_STAGE[round],
+      winnerPoints: KNOCKOUT_WINNER_POINTS_BY_STAGE[round],
+    };
+
+    it(`${round}: exact 1A→1A awards ${weights.exactPoints}`, () => {
+      expect(
+        scoreMatchPrediction({
+          predicted: '1A',
+          actual: '1A',
+          doublePoints: false,
+          weights,
+        }),
+      ).toEqual({ points: weights.exactPoints, outcome: 'exact' });
+    });
+
+    it(`${round}: winner 1A→1B awards ${weights.winnerPoints}`, () => {
+      expect(
+        scoreMatchPrediction({
+          predicted: '1A',
+          actual: '1B',
+          doublePoints: false,
+          weights,
+        }),
+      ).toEqual({ points: weights.winnerPoints, outcome: 'winner' });
+    });
+
+    it(`${round}: winner 2B→2A awards ${weights.winnerPoints}`, () => {
+      expect(
+        scoreMatchPrediction({
+          predicted: '2B',
+          actual: '2A',
+          doublePoints: false,
+          weights,
+        }),
+      ).toEqual({ points: weights.winnerPoints, outcome: 'winner' });
+    });
+
+    it(`${round}: miss 1A→2B awards 0`, () => {
+      expect(
+        scoreMatchPrediction({
+          predicted: '1A',
+          actual: '2B',
+          doublePoints: false,
+          weights,
+        }),
+      ).toEqual({ points: 0, outcome: 'miss' });
+    });
+  }
 });
