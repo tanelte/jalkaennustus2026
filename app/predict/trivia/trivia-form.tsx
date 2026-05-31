@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { startTransition, useActionState, useState } from 'react';
 import { submitTrivia, type SubmitTriviaState } from './actions';
 import { ANSWER_MAX_LEN } from './constants';
 
@@ -36,15 +36,31 @@ export function TriviaForm({
   disabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState(submitTrivia, initialState);
+  const [answers, setAnswers] = useState<Record<number, string>>(() =>
+    Object.fromEntries(questions.map((q) => [q.position, q.currentAnswer])),
+  );
 
   return (
-    <form action={formAction} className="mt-6 space-y-5" noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        // React 19's <form action=…> auto-resets uncontrolled inputs after a
+        // successful submit and flickers controlled inputs back to initial.
+        // Driving the action via onSubmit + startTransition sidesteps the
+        // reset while keeping useActionState's `pending` accurate.
+        startTransition(() => formAction(formData));
+      }}
+      className="mt-6 space-y-5"
+      noValidate
+    >
       {questions.map((q) => {
         const inputType = q.answerShape === 'integer' ? 'number' : 'text';
         const inputMode = q.answerShape === 'integer' ? 'numeric' : 'text';
+        const inputId = `answer_${q.position}`;
         return (
           <div key={q.position} className="rounded border p-4">
-            <label className="block font-medium" htmlFor={`answer_${q.position}`}>
+            <label className="block font-medium" htmlFor={inputId}>
               Q{q.position}. {q.promptEt}
             </label>
             {q.conditionalOnPosition !== null && (
@@ -54,12 +70,15 @@ export function TriviaForm({
               </p>
             )}
             <input
-              id={`answer_${q.position}`}
-              name={`answer_${q.position}`}
+              id={inputId}
+              name={inputId}
               type={inputType}
               inputMode={inputMode}
               maxLength={ANSWER_MAX_LEN}
-              defaultValue={q.currentAnswer}
+              value={answers[q.position] ?? ''}
+              onChange={(e) =>
+                setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
+              }
               disabled={disabled}
               required
               className="mt-2 w-full rounded border border-gray-300 px-3 py-2"

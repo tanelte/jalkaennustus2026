@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { startTransition, useActionState, useState } from 'react';
 import { confirmTriviaAnswers, type ConfirmTriviaState } from './actions';
 import { ANSWER_MAX_LEN } from '@/app/predict/trivia/constants';
 
@@ -28,14 +28,30 @@ export function TriviaConfirmForm({
   questions: readonly OfficialQuestionRow[];
 }) {
   const [state, formAction, pending] = useActionState(confirmTriviaAnswers, initialState);
+  const [answers, setAnswers] = useState<Record<number, string>>(() =>
+    Object.fromEntries(questions.map((q) => [q.position, q.currentCorrect])),
+  );
 
   return (
-    <form action={formAction} className="mt-4 space-y-4" noValidate>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        // React 19's <form action=…> auto-resets uncontrolled inputs after a
+        // successful submit and flickers controlled inputs back to initial.
+        // Driving the action via onSubmit + startTransition sidesteps the
+        // reset while keeping useActionState's `pending` accurate.
+        startTransition(() => formAction(formData));
+      }}
+      className="mt-4 space-y-4"
+      noValidate
+    >
       {questions.map((q) => {
         const inputType = q.answerShape === 'integer' ? 'number' : 'text';
+        const inputId = `official_${q.position}`;
         return (
           <div key={q.position} className="rounded border p-4">
-            <label className="block font-medium" htmlFor={`official_${q.position}`}>
+            <label className="block font-medium" htmlFor={inputId}>
               Q{q.position}. {q.promptEt}
             </label>
             {q.conditionalOnPosition !== null && (
@@ -44,11 +60,14 @@ export function TriviaConfirmForm({
               </p>
             )}
             <input
-              id={`official_${q.position}`}
-              name={`official_${q.position}`}
+              id={inputId}
+              name={inputId}
               type={inputType}
               maxLength={ANSWER_MAX_LEN}
-              defaultValue={q.currentCorrect}
+              value={answers[q.position] ?? ''}
+              onChange={(e) =>
+                setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
+              }
               className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
               placeholder="(jätta tühjaks = veel teadmata)"
             />
