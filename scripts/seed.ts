@@ -125,13 +125,19 @@ async function main(): Promise<number> {
       );
     }
 
-    // Questions
+    // Questions — upsert prompt/shape/conditional so seed re-runs propagate
+    // edited trivia text to prod. Deliberately do NOT touch correct_answer:
+    // that column is operator-managed via the admin form and must survive
+    // re-seeds.
     for (const q of wc2026Questions) {
       await client.query(
         `insert into questions
            (tournament_id, position, prompt_et, answer_shape, conditional_on_position)
          values ($1, $2, $3, $4, $5)
-         on conflict (tournament_id, position) do nothing`,
+         on conflict (tournament_id, position) do update set
+           prompt_et = excluded.prompt_et,
+           answer_shape = excluded.answer_shape,
+           conditional_on_position = excluded.conditional_on_position`,
         [tournamentId, q.position, q.promptEt, q.answerShape, q.conditionalOnPosition],
       );
     }
