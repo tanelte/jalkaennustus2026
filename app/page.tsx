@@ -74,6 +74,11 @@ export default async function Home() {
         <h2 className="text-lg font-medium">Ennustused</h2>
         <ul className="mt-2 space-y-1 text-sm">
           <li>
+            <Link href="/predict/group-stage" className="text-blue-700 hover:underline">
+              Grupimängude ennustused
+            </Link>
+          </li>
+          <li>
             <Link href="/predict/best-thirds" className="text-blue-700 hover:underline">
               Best-thirds (8 paremat kolmandat)
             </Link>

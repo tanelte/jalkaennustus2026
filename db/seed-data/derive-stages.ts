@@ -68,7 +68,10 @@ export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): Sta
       code: 'group_matches',
       position: 2,
       opensAt: alwaysOpen.toISOString(),
-      closesAt: lastGroup.toISOString(),
+      // Single global window: closes at the FIRST group-stage kickoff so that
+      // once any group match starts, every group-stage prediction is locked
+      // (UX spec §9 Q4; S10 AC).
+      closesAt: firstGroup.toISOString(),
     },
     {
       code: 'best_thirds',
