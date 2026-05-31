@@ -125,9 +125,12 @@ export default async function Home() {
         )}
       </section>
       {session?.user?.group_id && (
-        <nav className="mt-6">
-          <Link href="/leaderboard" className="text-sm underline">
+        <nav className="mt-6 flex gap-4 text-sm">
+          <Link href="/leaderboard" className="underline">
             Edetabel
+          </Link>
+          <Link href="/roast" className="underline">
+            Roast
           </Link>
         </nav>
       )}
