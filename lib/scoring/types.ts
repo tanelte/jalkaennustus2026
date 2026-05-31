@@ -31,8 +31,18 @@ export type NonResultReason =
   | 'NOT_FINAL'
   | 'POSTPONED'
   | 'CANCELLED'
-  | 'ABANDONED';
+  | 'ABANDONED'
+  | 'KNOCKOUT_TIE_INVALID';
 
 export type MapResultOutcome =
   | { kind: 'result'; code: ResultCode }
   | { kind: 'no-result'; reason: NonResultReason };
+
+// Knockout interpretation: A/B suffix encodes normal-time vs extra-time /
+// penalty-shootout decision. Used by S06's operator admin and consumed by
+// the S08 knockout team-prediction scoring path.
+export type KnockoutFinishType = 'NORMAL_TIME' | 'EXTRA_TIME' | 'PENALTIES';
+
+export interface KnockoutFeedMatch extends FeedMatch {
+  finishType: KnockoutFinishType;
+}

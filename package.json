@@ -20,7 +20,8 @@
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "create-group": "tsx scripts/create-group.ts"
+    "create-group": "tsx scripts/create-group.ts",
+    "promote-operator": "tsx scripts/promote-operator.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

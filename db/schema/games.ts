@@ -28,6 +28,7 @@ export const games = pgTable(
     score_home: integer('score_home'),
     score_away: integer('score_away'),
     final_status: text('final_status'),
+    finish_type: text('finish_type'),
     result_code: text('result_code').references(() => result_codes.code),
     double_points: boolean('double_points').notNull().default(false),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
