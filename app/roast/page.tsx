@@ -74,8 +74,7 @@ export default async function RoastPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Roast — {focusUsername}</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Liiga <strong>{session.user.username}</strong> — WC2026 kokkuvõte. Kopeeri
-          tekst all ja kleebi WhatsAppi.
+          Liiga <strong>{session.user.username}</strong> — WC2026 kokkuvõte.
         </p>
       </header>
 
