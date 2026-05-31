@@ -96,13 +96,19 @@ function emitUsers(users: SeedUser[], sourceDump: string): string {
   const body = users
     .map(
       (u) =>
-        `  { legacyId: ${u.legacyId}, username: ${JSON.stringify(u.username)}, groupUsernames: ${JSON.stringify(u.groupUsernames)} },`,
+        `  { legacyId: ${u.legacyId}, username: ${JSON.stringify(u.username)}, groups: ${JSON.stringify(u.groups)} },`,
     )
     .join('\n');
-  return `${tsHeader(sourceDump)}export interface LegacySeedUser {
+  return `${tsHeader(sourceDump)}export interface LegacySeedUserGroup {
+  username: string;
+  /** ISO timestamp string from legacy user_groups.deleted_at, or null if active. */
+  deletedAt: string | null;
+}
+
+export interface LegacySeedUser {
   legacyId: number;
   username: string;
-  groupUsernames: readonly string[];
+  groups: readonly LegacySeedUserGroup[];
 }
 
 export const legacyUsers: readonly LegacySeedUser[] = [

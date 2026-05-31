@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
@@ -13,7 +13,7 @@ async function listUsersInGroup(groupId: string) {
     .select({ id: users.id, username: users.username })
     .from(users)
     .innerJoin(user_groups, eq(user_groups.user_id, users.id))
-    .where(eq(user_groups.group_id, groupId))
+    .where(and(eq(user_groups.group_id, groupId), isNull(user_groups.deleted_at)))
     .orderBy(asc(users.username));
 }
 

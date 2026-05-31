@@ -12,6 +12,7 @@ export const user_groups = pgTable(
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deleted_at: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.user_id, table.group_id] }),

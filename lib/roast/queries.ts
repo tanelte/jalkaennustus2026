@@ -46,6 +46,7 @@ async function loadMatchPredictions(
       ug.points
     from user_games ug
     join games g on g.id = ug.game_id
+    join tournaments t on t.id = g.tournament_id
     join users u on u.id = ug.user_id
     join user_groups ugrp on ugrp.user_id = ug.user_id
     left join teams th on th.id = g.team_home_id
@@ -54,6 +55,7 @@ async function loadMatchPredictions(
       and g.tournament_id = ${tournamentId}
       and u.is_system_user = false
       and g.result_code is not null
+      and coalesce(ugrp.deleted_at, current_timestamp) > t.starts_at
   `);
 
   return rows.map((r) => ({
@@ -91,6 +93,7 @@ async function loadTeamPredictions(
       t.name_et as team_name,
       ut.points
     from user_teams ut
+    join tournaments tour on tour.id = ut.tournament_id
     join users u on u.id = ut.user_id
     join user_groups ugrp on ugrp.user_id = ut.user_id
     join teams t on t.id = ut.team_id
@@ -98,6 +101,7 @@ async function loadTeamPredictions(
       and ut.tournament_id = ${tournamentId}
       and u.is_system_user = false
       and ut.points is not null
+      and coalesce(ugrp.deleted_at, current_timestamp) > tour.starts_at
   `);
 
   return rows.map((r) => ({
@@ -126,12 +130,14 @@ async function loadBestThirdsPredictions(
       ubt.group_letter,
       ubt.points
     from user_best_thirds ubt
+    join tournaments t on t.id = ubt.tournament_id
     join users u on u.id = ubt.user_id
     join user_groups ugrp on ugrp.user_id = ubt.user_id
     where ugrp.group_id = ${groupId}
       and ubt.tournament_id = ${tournamentId}
       and u.is_system_user = false
       and ubt.points is not null
+      and coalesce(ugrp.deleted_at, current_timestamp) > t.starts_at
   `);
 
   return rows.map((r) => ({
@@ -163,12 +169,14 @@ async function loadTriviaPredictions(
       uq.points
     from user_questions uq
     join questions q on q.id = uq.question_id
+    join tournaments t on t.id = q.tournament_id
     join users u on u.id = uq.user_id
     join user_groups ugrp on ugrp.user_id = uq.user_id
     where ugrp.group_id = ${groupId}
       and q.tournament_id = ${tournamentId}
       and u.is_system_user = false
       and uq.points is not null
+      and coalesce(ugrp.deleted_at, current_timestamp) > t.starts_at
   `);
 
   return rows.map((r) => ({

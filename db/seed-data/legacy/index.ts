@@ -12,7 +12,7 @@ export type { LegacySeedScore } from './scores';
 
 export const legacyDataMeta = {
   "sourceDump": "../jalkaennustus/dump-plain-d11hgd41ejed91-202408181231.sql",
-  "builtAt": "2026-05-31T10:25:50.451Z",
+  "builtAt": "2026-05-31T12:45:45.195Z",
   "counts": {
     "tournaments": 7,
     "groups": 16,

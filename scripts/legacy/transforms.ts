@@ -35,6 +35,8 @@ export interface LegacyUserGroup {
   id: number;
   userId: number;
   groupId: number;
+  /** Soft-delete timestamp from the legacy `user_groups.deleted_at`; null = active. */
+  deletedAt: string | null;
 }
 
 export interface LegacyUserResult {
@@ -58,10 +60,16 @@ export interface SeedGroup {
   legacyId: number;
 }
 
+export interface SeedUserGroup {
+  username: string;
+  /** ISO timestamp string from legacy `user_groups.deleted_at`, or null if the membership is active. */
+  deletedAt: string | null;
+}
+
 export interface SeedUser {
   legacyId: number;
   username: string;
-  groupUsernames: string[];
+  groups: SeedUserGroup[];
 }
 
 export interface SeedScore {
@@ -186,6 +194,13 @@ function str(row: CopyRow, col: string): string {
   return v;
 }
 
+function tsOrNull(row: CopyRow, col: string): string | null {
+  const v = row[col];
+  if (v === null || v === undefined) return null;
+  const trimmed = v.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
 export function asLegacyTournaments(rows: CopyRow[]): LegacyTournament[] {
   return rows.map((r) => ({
     id: int(r, 'id'),
@@ -219,7 +234,12 @@ export function asLegacyUserGroups(rows: CopyRow[]): LegacyUserGroup[] {
     const userId = intOrNull(r, 'user_id');
     const groupId = intOrNull(r, 'group_id');
     if (userId === null || groupId === null) continue;
-    out.push({ id: int(r, 'id'), userId, groupId });
+    out.push({
+      id: int(r, 'id'),
+      userId,
+      groupId,
+      deletedAt: tsOrNull(r, 'deleted_at'),
+    });
   }
   return out;
 }
@@ -270,17 +290,30 @@ export function transformUsers(
   const userKeyByLegacyId = new Map<number, number | typeof SINGLETON_KEY>();
   const users: SeedUser[] = [];
 
-  // Map legacy user_id → set of group usernames (via user_groups + groups).
-  const groupsByUser = new Map<number, Set<string>>();
+  // Map legacy user_id → groupUsername → deletedAt | null. Active wins over
+  // soft-deleted (a user who re-joined after leaving is currently a member);
+  // among multiple deletions, the latest timestamp wins so we replay the
+  // most recent exit moment.
+  const groupsByUser = new Map<number, Map<string, string | null>>();
   for (const ug of legacyUserGroups) {
     const gName = legacyGroupUsernameById.get(ug.groupId);
     if (!gName) continue;
-    let set = groupsByUser.get(ug.userId);
-    if (!set) {
-      set = new Set<string>();
-      groupsByUser.set(ug.userId, set);
+    let map = groupsByUser.get(ug.userId);
+    if (!map) {
+      map = new Map<string, string | null>();
+      groupsByUser.set(ug.userId, map);
     }
-    set.add(gName);
+    if (!map.has(gName)) {
+      map.set(gName, ug.deletedAt);
+      continue;
+    }
+    const existing = map.get(gName)!;
+    if (existing === null) continue; // already active — keep
+    if (ug.deletedAt === null) {
+      map.set(gName, null);
+      continue;
+    }
+    if (ug.deletedAt > existing) map.set(gName, ug.deletedAt);
   }
 
   for (const u of legacyUsers) {
@@ -289,8 +322,11 @@ export function transformUsers(
       continue;
     }
     const username = u.name.length > 0 ? u.name : `legacy_user_${u.id}`;
-    const groupUsernames = Array.from(groupsByUser.get(u.id) ?? []).sort();
-    users.push({ legacyId: u.id, username, groupUsernames });
+    const groupMap = groupsByUser.get(u.id) ?? new Map<string, string | null>();
+    const groups: SeedUserGroup[] = Array.from(groupMap.entries())
+      .map(([gUsername, deletedAt]) => ({ username: gUsername, deletedAt }))
+      .sort((a, b) => (a.username < b.username ? -1 : a.username > b.username ? 1 : 0));
+    users.push({ legacyId: u.id, username, groups });
     userKeyByLegacyId.set(u.id, u.id);
   }
 

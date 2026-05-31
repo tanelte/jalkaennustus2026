@@ -58,7 +58,7 @@ describe('transformUsers', () => {
     expect(out.users[0]!.username).toBe('legacy_user_44');
   });
 
-  it('attaches groupUsernames from user_groups via legacy group id map', () => {
+  it('attaches groups from user_groups via legacy group id map', () => {
     const groupNames = new Map<number, string>([
       [1, 'mehed'],
       [4, 'NortalRM'],
@@ -66,12 +66,62 @@ describe('transformUsers', () => {
     const out = transformUsers(
       [{ id: 11, name: 'Tarts' }],
       [
-        { id: 1, userId: 11, groupId: 1 },
-        { id: 2, userId: 11, groupId: 4 },
+        { id: 1, userId: 11, groupId: 1, deletedAt: null },
+        { id: 2, userId: 11, groupId: 4, deletedAt: null },
       ],
       groupNames,
     );
-    expect(out.users[0]!.groupUsernames).toEqual(['NortalRM', 'mehed']);
+    expect(out.users[0]!.groups).toEqual([
+      { username: 'NortalRM', deletedAt: null },
+      { username: 'mehed', deletedAt: null },
+    ]);
+  });
+
+  it('preserves deleted_at on soft-deleted memberships', () => {
+    const groupNames = new Map<number, string>([
+      [1, 'mehed'],
+      [4, 'NortalRM'],
+    ]);
+    const out = transformUsers(
+      [{ id: 11, name: 'Tarts' }],
+      [
+        { id: 1, userId: 11, groupId: 1, deletedAt: '2018-06-01 12:00:00' },
+        { id: 2, userId: 11, groupId: 4, deletedAt: null },
+      ],
+      groupNames,
+    );
+    expect(out.users[0]!.groups).toEqual([
+      { username: 'NortalRM', deletedAt: null },
+      { username: 'mehed', deletedAt: '2018-06-01 12:00:00' },
+    ]);
+  });
+
+  it('collapses repeat memberships: active wins over soft-deleted', () => {
+    const groupNames = new Map<number, string>([[1, 'mehed']]);
+    const out = transformUsers(
+      [{ id: 11, name: 'Tarts' }],
+      [
+        { id: 1, userId: 11, groupId: 1, deletedAt: '2018-06-01 12:00:00' },
+        { id: 2, userId: 11, groupId: 1, deletedAt: null },
+      ],
+      groupNames,
+    );
+    expect(out.users[0]!.groups).toEqual([{ username: 'mehed', deletedAt: null }]);
+  });
+
+  it('collapses repeat soft-deletions to the latest timestamp', () => {
+    const groupNames = new Map<number, string>([[1, 'mehed']]);
+    const out = transformUsers(
+      [{ id: 11, name: 'Tarts' }],
+      [
+        { id: 1, userId: 11, groupId: 1, deletedAt: '2018-06-01 12:00:00' },
+        { id: 2, userId: 11, groupId: 1, deletedAt: '2024-07-10 12:00:00' },
+      ],
+      groupNames,
+    );
+    expect(out.users[0]!.groups).toEqual([
+      { username: 'mehed', deletedAt: '2024-07-10 12:00:00' },
+    ]);
   });
 });
 
@@ -97,9 +147,9 @@ describe('transformScores', () => {
         { id: 102, tournamentId: 3, points: 150, userGroupId: 12 },
       ],
       userGroups: [
-        { id: 10, userId: 1, groupId: 1 },
-        { id: 11, userId: 2, groupId: 1 },
-        { id: 12, userId: 3, groupId: 1 },
+        { id: 10, userId: 1, groupId: 1, deletedAt: null },
+        { id: 11, userId: 2, groupId: 1, deletedAt: null },
+        { id: 12, userId: 3, groupId: 1, deletedAt: null },
       ],
       legacyUserKeyByLegacyId: userKeys([
         [1, 1],
@@ -130,8 +180,8 @@ describe('transformScores', () => {
         { id: 2, tournamentId: 3, points: null, userGroupId: 11 },
       ],
       userGroups: [
-        { id: 10, userId: 1, groupId: 1 },
-        { id: 11, userId: 2, groupId: 1 },
+        { id: 10, userId: 1, groupId: 1, deletedAt: null },
+        { id: 11, userId: 2, groupId: 1, deletedAt: null },
       ],
       legacyUserKeyByLegacyId: userKeys([
         [1, 1],
@@ -155,8 +205,8 @@ describe('transformScores', () => {
         { id: 2, tournamentId: 3, points: 350, userGroupId: 100 },
       ],
       userGroups: [
-        { id: 99, userId: 12, groupId: 1 }, // legacy id 12 = tegelikud tulemused
-        { id: 100, userId: 17, groupId: 1 }, // legacy id 17 = tegelikud tulemused
+        { id: 99, userId: 12, groupId: 1, deletedAt: null }, // legacy id 12 = tegelikud tulemused
+        { id: 100, userId: 17, groupId: 1, deletedAt: null }, // legacy id 17 = tegelikud tulemused
       ],
       legacyUserKeyByLegacyId: userKeys([
         [12, SINGLETON_KEY],

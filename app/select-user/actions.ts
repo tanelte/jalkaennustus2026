@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { setCurrentUserCookie } from '@/lib/current-user';
@@ -43,7 +43,13 @@ export async function selectExistingUser(
   const membership = await db
     .select({ user_id: user_groups.user_id })
     .from(user_groups)
-    .where(and(eq(user_groups.group_id, groupId), eq(user_groups.user_id, userId)))
+    .where(
+      and(
+        eq(user_groups.group_id, groupId),
+        eq(user_groups.user_id, userId),
+        isNull(user_groups.deleted_at),
+      ),
+    )
     .limit(1);
 
   if (membership.length === 0) {
@@ -82,7 +88,13 @@ export async function createAndSelectUser(
       .select({ id: users.id })
       .from(users)
       .innerJoin(user_groups, eq(user_groups.user_id, users.id))
-      .where(and(eq(users.username, username), eq(user_groups.group_id, groupId)))
+      .where(
+        and(
+          eq(users.username, username),
+          eq(user_groups.group_id, groupId),
+          isNull(user_groups.deleted_at),
+        ),
+      )
       .limit(1);
 
     if (collision.length > 0) {

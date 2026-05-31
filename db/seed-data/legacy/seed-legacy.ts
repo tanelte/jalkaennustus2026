@@ -94,14 +94,16 @@ export async function seedLegacy(client: Client): Promise<SeedLegacyCounts> {
   for (const u of legacyUsers) {
     const userUuid = userIdByLegacyId.get(u.legacyId);
     if (!userUuid) continue;
-    for (const groupUsername of u.groupUsernames) {
+    for (const { username: groupUsername, deletedAt } of u.groups) {
       const groupUuid = groupIdByUsername.get(groupUsername);
       if (!groupUuid) continue;
+      // ON CONFLICT DO UPDATE so re-runs converge to the latest deletedAt
+      // state when the seed file changes (composite PK is (user_id, group_id)).
       await client.query(
-        `insert into user_groups (user_id, group_id)
-         values ($1, $2)
-         on conflict do nothing`,
-        [userUuid, groupUuid],
+        `insert into user_groups (user_id, group_id, deleted_at)
+         values ($1, $2, $3)
+         on conflict (user_id, group_id) do update set deleted_at = excluded.deleted_at`,
+        [userUuid, groupUuid, deletedAt],
       );
     }
   }
