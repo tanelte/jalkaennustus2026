@@ -21,7 +21,7 @@ import {
 const { auth } = NextAuth(authConfig);
 
 const CREDENTIALS_CALLBACK_PATH = '/api/auth/callback/credentials';
-const PUBLIC_PATH_PREFIXES = ['/login', '/api/auth'];
+const PUBLIC_PATH_PREFIXES = ['/login', '/groups/new', '/api/auth'];
 const SELECT_USER_PATH = '/select-user';
 
 function extractIp(req: NextRequest): string {
