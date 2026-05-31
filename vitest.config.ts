@@ -9,7 +9,11 @@ export default defineConfig({
   },
   test: {
     setupFiles: ['./vitest.setup.ts'],
-    include: ['lib/**/*.test.ts', 'lib/**/*.test.tsx'],
+    include: [
+      'lib/**/*.test.ts',
+      'lib/**/*.test.tsx',
+      'scripts/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

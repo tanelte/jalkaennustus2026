@@ -21,7 +21,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "create-group": "tsx scripts/create-group.ts",
-    "promote-operator": "tsx scripts/promote-operator.ts"
+    "promote-operator": "tsx scripts/promote-operator.ts",
+    "build-legacy-seed": "tsx scripts/build-legacy-seed.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -23,6 +23,7 @@ import {
   wc2026Questions,
 } from '../db/seed-data/wc2026';
 import { deriveStages } from '../db/seed-data/derive-stages';
+import { seedLegacy } from '../db/seed-data/legacy/seed-legacy';
 
 config({ path: '.env.local' });
 
@@ -135,15 +136,18 @@ async function main(): Promise<number> {
       );
     }
 
+    const legacyCounts = await seedLegacy(client);
+
     await client.query('commit');
 
     // Final counts for the operator log line
     const counts = {
-      tournaments: 1,
+      tournaments: 1 + legacyCounts.tournaments,
       teams: wc2026Teams.length,
       games: wc2026Games.length,
       stages: stages.length,
       questions: wc2026Questions.length,
+      legacy: legacyCounts,
     };
     logLine('info', {
       operation: 'seed',

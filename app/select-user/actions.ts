@@ -12,7 +12,8 @@ export type SelectUserError =
   | 'no_session'
   | 'missing_user_id'
   | 'not_a_member'
-  | 'invalid_username';
+  | 'invalid_username'
+  | 'username_taken_in_group';
 
 export interface SelectUserState {
   ok?: true;
@@ -76,21 +77,16 @@ export async function createAndSelectUser(
     return { error: 'invalid_username' };
   }
 
-  const userId = await db.transaction(async (tx) => {
-    const existing = await tx
+  const result = await db.transaction(async (tx) => {
+    const collision = await tx
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.username, username))
+      .innerJoin(user_groups, eq(user_groups.user_id, users.id))
+      .where(and(eq(users.username, username), eq(user_groups.group_id, groupId)))
       .limit(1);
 
-    const existingUserId = existing[0]?.id;
-    if (existingUserId) {
-      // Username already taken globally. Attach to this group if not already, then reuse it.
-      await tx
-        .insert(user_groups)
-        .values({ user_id: existingUserId, group_id: groupId })
-        .onConflictDoNothing();
-      return existingUserId;
+    if (collision.length > 0) {
+      return { taken: true as const };
     }
 
     const inserted = await tx
@@ -99,8 +95,21 @@ export async function createAndSelectUser(
       .returning({ id: users.id });
     const newUserId = inserted[0]!.id;
     await tx.insert(user_groups).values({ user_id: newUserId, group_id: groupId });
-    return newUserId;
+    return { taken: false as const, userId: newUserId };
   });
+
+  if (result.taken) {
+    log.warn({
+      operation: 'create_user',
+      outcome: 'rejected',
+      reason: 'username_taken_in_group',
+      group_id: groupId,
+      username,
+    });
+    return { error: 'username_taken_in_group' };
+  }
+
+  const userId = result.userId;
 
   await setCurrentUserCookie(userId);
   log.info({

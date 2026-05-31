@@ -7,7 +7,7 @@ import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
  */
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  username: text('username').notNull().unique(),
+  username: text('username').notNull(),
   is_system_user: boolean('is_system_user').notNull().default(false),
   is_operator: boolean('is_operator').notNull().default(false),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

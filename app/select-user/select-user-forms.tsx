@@ -15,6 +15,7 @@ const ERROR_COPY: Record<SelectUserError, string> = {
   missing_user_id: 'Kasutaja valimine ebaõnnestus, palun proovi uuesti.',
   not_a_member: 'See kasutaja ei kuulu sellesse gruppi.',
   invalid_username: 'Kasutajanimi peab olema 1–64 tähemärki.',
+  username_taken_in_group: 'Selle nimega kasutaja on selles grupis juba olemas.',
 };
 
 interface GroupUser {
