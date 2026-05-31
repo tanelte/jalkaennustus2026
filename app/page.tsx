@@ -10,6 +10,7 @@ import {
   formatDeadlineRelative,
   getHomeData,
   type OpenWindowCard,
+  type UpcomingWindowCard,
 } from '@/lib/home';
 import { getCurrentTournamentId, resolveTournamentCode } from '@/lib/tournaments/current';
 import { users } from '@/db/schema';
@@ -76,6 +77,19 @@ export default async function Home() {
             {data.openWindows.map((window) => (
               <OpenWindowCardView key={window.code} card={window} />
             ))}
+          </section>
+        )}
+
+        {data.upcomingWindows.length > 0 && (
+          <section aria-labelledby="tulekul" className="rounded border p-4">
+            <h2 id="tulekul" className="text-lg font-medium">
+              Tulekul
+            </h2>
+            <ul className="mt-2 space-y-1 text-sm">
+              {data.upcomingWindows.map((window) => (
+                <UpcomingWindowRow key={window.code} card={window} />
+              ))}
+            </ul>
           </section>
         )}
 
@@ -181,6 +195,21 @@ function RoastTile() {
         </Link>
       </p>
     </article>
+  );
+}
+
+function UpcomingWindowRow({ card }: { card: UpcomingWindowCard }) {
+  const now = new Date();
+  const relative = formatDeadlineRelative(card.opensAt, now);
+  const absolute = formatDeadlineAbsolute(card.opensAt);
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-2">
+      <span>{card.labelEt}</span>
+      <span className="tabular-nums text-gray-700">
+        Avaneb {absolute}
+        {relative ? ` (${relative})` : ''}
+      </span>
+    </li>
   );
 }
 

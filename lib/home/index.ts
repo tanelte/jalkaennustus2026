@@ -3,6 +3,7 @@ export {
   type HomeData,
   type HomeInput,
   type OpenWindowCard,
+  type UpcomingWindowCard,
   type LegacyHistoryRow,
   type CrossTournamentRow,
   type CurrentScore,

@@ -16,6 +16,7 @@ import {
 } from '@/db/schema';
 import {
   getOpenStages,
+  getUpcomingStages,
   type StageCode,
   type StageRow,
 } from './open-windows';
@@ -32,6 +33,12 @@ export interface OpenWindowCard {
   closesAt: Date;
   progress: StageProgress;
   progressLabel: string;
+}
+
+export interface UpcomingWindowCard {
+  code: StageCode;
+  labelEt: string;
+  opensAt: Date;
 }
 
 export interface LegacyHistoryRow {
@@ -55,13 +62,14 @@ export interface CurrentScore {
 export interface HomeData {
   greeting: { playerName: string; groupName: string };
   openWindows: OpenWindowCard[];
+  upcomingWindows: UpcomingWindowCard[];
   roastUnlocked: boolean;
   currentScore: CurrentScore;
   legacyPreview: LegacyHistoryRow[];
   crossTournamentPreview: CrossTournamentRow[];
 }
 
-const STAGE_LABEL_ET: Record<StageCode, string> = {
+export const STAGE_LABEL_ET: Record<StageCode, string> = {
   trivia: 'Trivia',
   group_matches: 'Grupimängude ennustused',
   best_thirds: '8 parima kolmanda valik',
@@ -86,6 +94,7 @@ const STAGE_CTA_HREF: Record<StageCode, string> = {
 export interface HomeDataDeps {
   loadPlayerName: (userId: string) => Promise<string>;
   loadOpenStages: (tournamentId: string) => Promise<StageRow[]>;
+  loadUpcomingStages: (tournamentId: string) => Promise<StageRow[]>;
   loadStageProgress: (
     code: StageCode,
     userId: string,
@@ -118,6 +127,7 @@ export async function getHomeData(
   const [
     playerName,
     openStageRows,
+    upcomingStageRows,
     roastUnlocked,
     currentScore,
     legacyPreview,
@@ -125,6 +135,7 @@ export async function getHomeData(
   ] = await Promise.all([
     deps.loadPlayerName(input.userId),
     deps.loadOpenStages(input.tournamentId),
+    deps.loadUpcomingStages(input.tournamentId),
     deps.isFinalEnded(input.tournamentId),
     deps.loadCurrentScore(input.userId, input.groupId, input.tournamentId),
     deps.loadLegacyPreview(input.userId, input.groupId),
@@ -145,9 +156,16 @@ export async function getHomeData(
     }),
   );
 
+  const upcomingWindows: UpcomingWindowCard[] = upcomingStageRows.map((row) => ({
+    code: row.code,
+    labelEt: STAGE_LABEL_ET[row.code],
+    opensAt: row.opens_at,
+  }));
+
   return {
     greeting: { playerName, groupName: input.groupName },
     openWindows,
+    upcomingWindows,
     roastUnlocked,
     currentScore,
     legacyPreview,
@@ -244,6 +262,7 @@ async function loadCrossTournamentPreviewDb(
 const defaultDeps: HomeDataDeps = {
   loadPlayerName: loadPlayerNameDb,
   loadOpenStages: (tournamentId) => getOpenStages(tournamentId),
+  loadUpcomingStages: (tournamentId) => getUpcomingStages(tournamentId),
   loadStageProgress: (code, userId, tournamentId) =>
     getStageProgress(code, userId, tournamentId),
   isFinalEnded: isFinalEndedDb,

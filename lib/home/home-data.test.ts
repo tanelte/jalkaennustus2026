@@ -5,6 +5,7 @@ function makeDeps(overrides: Partial<HomeDataDeps> = {}): HomeDataDeps {
   const base: HomeDataDeps = {
     loadPlayerName: vi.fn(async () => 'Mart'),
     loadOpenStages: vi.fn(async () => []),
+    loadUpcomingStages: vi.fn(async () => []),
     loadStageProgress: vi.fn(async () => ({
       submitted: 0,
       expected: 8,
@@ -30,10 +31,46 @@ describe('getHomeData', () => {
     const out = await getHomeData(INPUT, makeDeps());
     expect(out.greeting).toEqual({ playerName: 'Mart', groupName: 'Pohlamarjad' });
     expect(out.openWindows).toEqual([]);
+    expect(out.upcomingWindows).toEqual([]);
     expect(out.roastUnlocked).toBe(false);
     expect(out.currentScore).toEqual({ totalPoints: 0, position: null });
     expect(out.legacyPreview).toEqual([]);
     expect(out.crossTournamentPreview).toEqual([]);
+  });
+
+  it('builds upcoming-window cards with labels and opens_at, in input order', async () => {
+    const out = await getHomeData(
+      INPUT,
+      makeDeps({
+        loadUpcomingStages: vi.fn(async () => [
+          {
+            code: 'best_thirds' as const,
+            position: 3,
+            opens_at: new Date('2026-06-25T18:00:00Z'),
+            closes_at: new Date('2026-06-26T18:00:00Z'),
+          },
+          {
+            code: 'final' as const,
+            position: 8,
+            opens_at: new Date('2026-07-19T16:00:00Z'),
+            closes_at: new Date('2026-07-19T19:00:00Z'),
+          },
+        ]),
+      }),
+    );
+
+    expect(out.upcomingWindows).toEqual([
+      {
+        code: 'best_thirds',
+        labelEt: '8 parima kolmanda valik',
+        opensAt: new Date('2026-06-25T18:00:00Z'),
+      },
+      {
+        code: 'final',
+        labelEt: 'Finaali ennustus (F1/F2/F3/F4)',
+        opensAt: new Date('2026-07-19T16:00:00Z'),
+      },
+    ]);
   });
 
   it('builds open-window cards with labels, CTAs, and progress strings', async () => {

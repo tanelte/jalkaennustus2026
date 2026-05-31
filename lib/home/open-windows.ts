@@ -30,6 +30,10 @@ export function filterOpenWindows(rows: readonly StageRow[], now: Date): StageRo
   return rows.filter((r) => now >= r.opens_at && now <= r.closes_at);
 }
 
+export function filterUpcomingWindows(rows: readonly StageRow[], now: Date): StageRow[] {
+  return rows.filter((r) => now < r.opens_at);
+}
+
 export interface GetOpenStagesDeps {
   findStages: (tournamentId: string) => Promise<StageRow[]>;
   now?: () => Date;
@@ -65,4 +69,13 @@ export async function getOpenStages(
   const all = await deps.findStages(tournamentId);
   const now = (deps.now ?? (() => new Date()))();
   return filterOpenWindows(all, now);
+}
+
+export async function getUpcomingStages(
+  tournamentId: string,
+  deps: GetOpenStagesDeps = { findStages: findStagesDb },
+): Promise<StageRow[]> {
+  const all = await deps.findStages(tournamentId);
+  const now = (deps.now ?? (() => new Date()))();
+  return filterUpcomingWindows(all, now);
 }
