@@ -1,9 +1,13 @@
 'use client';
 
 import { useActionState } from 'react';
-import { loginAction } from './actions';
+import { loginAction, type LoginError, type LoginState } from './actions';
 
-const initialState: { error?: string } = {};
+const initialState: LoginState = {};
+
+const ERROR_COPY: Record<LoginError, string> = {
+  invalid: 'Vale kasutajanimi või parool.',
+};
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
@@ -36,9 +40,9 @@ export function LoginForm() {
           className="mt-1 block w-full rounded border px-3 py-2"
         />
       </div>
-      {state.error === 'invalid' && (
+      {state.error && (
         <p role="alert" className="text-sm text-red-700">
-          Vale kasutajanimi või parool.
+          {ERROR_COPY[state.error]}
         </p>
       )}
       <button

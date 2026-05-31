@@ -8,21 +8,35 @@ import { db } from '@/lib/db';
 import { log } from '@/lib/log';
 import { user_groups, users } from '@/db/schema';
 
-async function requireGroupId(): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.group_id) {
-    redirect('/login');
-  }
-  return session.user.group_id;
+export type SelectUserError =
+  | 'no_session'
+  | 'missing_user_id'
+  | 'not_a_member'
+  | 'invalid_username';
+
+export interface SelectUserState {
+  ok?: true;
+  error?: SelectUserError;
 }
 
-export async function selectExistingUser(formData: FormData): Promise<void> {
-  const groupId = await requireGroupId();
-  const userId = String(formData.get('user_id') ?? '');
+async function getGroupId(): Promise<string | null> {
+  const session = await auth();
+  return session?.user?.group_id ?? null;
+}
 
+export async function selectExistingUser(
+  _prev: SelectUserState,
+  formData: FormData,
+): Promise<SelectUserState> {
+  const groupId = await getGroupId();
+  if (!groupId) {
+    return { error: 'no_session' };
+  }
+
+  const userId = String(formData.get('user_id') ?? '');
   if (!userId) {
     log.warn({ operation: 'select_user', outcome: 'rejected', reason: 'missing_user_id' });
-    redirect('/select-user');
+    return { error: 'missing_user_id' };
   }
 
   const membership = await db
@@ -38,7 +52,7 @@ export async function selectExistingUser(formData: FormData): Promise<void> {
       reason: 'not_a_member',
       group_id: groupId,
     });
-    redirect('/select-user');
+    return { error: 'not_a_member' };
   }
 
   await setCurrentUserCookie(userId);
@@ -46,13 +60,20 @@ export async function selectExistingUser(formData: FormData): Promise<void> {
   redirect('/');
 }
 
-export async function createAndSelectUser(formData: FormData): Promise<void> {
-  const groupId = await requireGroupId();
+export async function createAndSelectUser(
+  _prev: SelectUserState,
+  formData: FormData,
+): Promise<SelectUserState> {
+  const groupId = await getGroupId();
+  if (!groupId) {
+    return { error: 'no_session' };
+  }
+
   const username = String(formData.get('username') ?? '').trim();
 
   if (!username || username.length > 64) {
     log.warn({ operation: 'create_user', outcome: 'rejected', reason: 'invalid_username' });
-    redirect('/select-user');
+    return { error: 'invalid_username' };
   }
 
   const userId = await db.transaction(async (tx) => {
