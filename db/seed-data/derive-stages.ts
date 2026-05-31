@@ -34,10 +34,13 @@ function maxKickoff(games: GameSeed[], stage: GameSeed['stageCode']): Date {
  * Principle: each stage opens once all its participants are knowable, and
  * closes at the exact kickoff that locks the prediction.
  *
- * `trivia`, `group_matches`, and `best_thirds` are "always open" — every
- * participant is known from seed time, so opens_at is set to a sentinel
- * well before the tournament (tournament.startsAt - 30d) since the column
- * is NOT NULL.
+ * `trivia`, `group_matches`, `best_thirds`, and `final` are "always open" —
+ * each lets players record early picks (medal-position predictions in the
+ * `final` case) and only locks at the relevant kickoff. opens_at is set to a
+ * sentinel well before the tournament (tournament.startsAt - 30d) since the
+ * column is NOT NULL. As semifinals are decided the finals picker narrows
+ * its candidate list to the four semifinalists, but the window itself stays
+ * open from day one.
  */
 export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): StageSeed[] {
   const tournamentStart = new Date(tournament.startsAt);
@@ -52,7 +55,6 @@ export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): Sta
   const firstQf = minKickoff(games, 'qf');
   const lastQf = maxKickoff(games, 'qf');
   const firstSf = minKickoff(games, 'sf');
-  const lastSf = maxKickoff(games, 'sf');
   const firstFinal = minKickoff(games, 'final');
 
   const stages: StageSeed[] = [
@@ -101,7 +103,7 @@ export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): Sta
     {
       code: 'final',
       position: 8,
-      opensAt: new Date(lastSf.getTime() + FOUR_HOURS_MS).toISOString(),
+      opensAt: alwaysOpen.toISOString(),
       closesAt: firstFinal.toISOString(),
     },
   ];

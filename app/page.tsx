@@ -98,6 +98,11 @@ export default async function Home() {
               Poolfinaalid
             </Link>
           </li>
+          <li>
+            <Link href="/predict/final" className="text-blue-700 hover:underline">
+              Finaal (F1/F2/F3/F4)
+            </Link>
+          </li>
         </ul>
       </nav>
 

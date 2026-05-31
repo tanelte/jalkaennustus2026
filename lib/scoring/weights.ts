@@ -32,3 +32,17 @@ export const KNOCKOUT_WINNER_POINTS_BY_STAGE: Record<KnockoutStageCode, number> 
   qf: 11,
   sf: 18,
 };
+
+// Final-stage medal-position picks (S09). Player picks four distinct teams
+// for slots F1 (gold), F2 (silver), F3 (bronze), F4 (fourth-place). All-or-
+// nothing per slot: matching team_id awards the slot's weight, otherwise 0.
+// No EM-style F1↔F2 swap rule (LOCKED-5: dropped for WC). Max total = 150.
+export const FINAL_SLOTS = ['F1', 'F2', 'F3', 'F4'] as const;
+export type FinalSlot = (typeof FINAL_SLOTS)[number];
+
+export const FINAL_POINTS_BY_SLOT: Record<FinalSlot, number> = {
+  F1: 60,
+  F2: 40,
+  F3: 30,
+  F4: 20,
+};
