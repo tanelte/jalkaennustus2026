@@ -21,6 +21,12 @@ export default function AdminHome() {
           </Link>
           <span className="text-gray-600"> — märgi ametlikud 8 paremat kolmandat (avaneb pärast alagrupiakna sulgumist).</span>
         </li>
+        <li>
+          <Link href="/admin/trivia" className="text-blue-700 underline">
+            Trivia kinnitus
+          </Link>
+          <span className="text-gray-600"> — sisesta viie trivia küsimuse ametlikud vastused; Q5 skoorib ainult Q4 õigsuse korral.</span>
+        </li>
       </ul>
     </article>
   );

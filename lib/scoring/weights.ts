@@ -46,3 +46,9 @@ export const FINAL_POINTS_BY_SLOT: Record<FinalSlot, number> = {
   F3: 30,
   F4: 20,
 };
+
+// Trivia (S11). Five questions, 14 points each. Q5 scores zero unless Q4 is
+// also correct (Q5-conditional-on-Q4 trick preserved from the legacy DNA).
+// Max trivia points = 70 = 7% of the total tournament point budget.
+export const TRIVIA_POINTS_PER_CORRECT = 14;
+export const TRIVIA_QUESTION_COUNT = 5;

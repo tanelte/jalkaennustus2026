@@ -8,6 +8,8 @@ import {
   MATCH_EXACT_POINTS,
   MATCH_MISS_POINTS,
   MATCH_WINNER_POINTS,
+  TRIVIA_POINTS_PER_CORRECT,
+  TRIVIA_QUESTION_COUNT,
 } from './weights';
 
 // The locked scoring table is the test oracle. If these values change without
@@ -62,5 +64,15 @@ describe('final per-slot weights — match the locked Final Scoring Table', () =
     expect(FINAL_POINTS_BY_SLOT.F2).toBe(40);
     expect(FINAL_POINTS_BY_SLOT.F3).toBe(30);
     expect(FINAL_POINTS_BY_SLOT.F4).toBe(20);
+  });
+});
+
+describe('trivia weights — match the locked Final Scoring Table', () => {
+  it('TRIVIA_POINTS_PER_CORRECT is 14 (5 × 14 = 70 = 7% of tournament budget)', () => {
+    expect(TRIVIA_POINTS_PER_CORRECT).toBe(14);
+  });
+
+  it('TRIVIA_QUESTION_COUNT is 5', () => {
+    expect(TRIVIA_QUESTION_COUNT).toBe(5);
   });
 });

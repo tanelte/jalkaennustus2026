@@ -103,6 +103,11 @@ export default async function Home() {
               Finaal (F1/F2/F3/F4)
             </Link>
           </li>
+          <li>
+            <Link href="/predict/trivia" className="text-blue-700 hover:underline">
+              Trivia (5 küsimust, Q5 sõltub Q4-st)
+            </Link>
+          </li>
         </ul>
       </nav>
 

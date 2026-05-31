@@ -77,6 +77,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <Link href="/admin/finals" className="underline">
           Finaali kinnitus
         </Link>
+        <Link href="/admin/trivia" className="underline">
+          Trivia kinnitus
+        </Link>
       </nav>
 
       <section className="mt-6">{children}</section>
