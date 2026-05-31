@@ -1,12 +1,15 @@
 /**
- * In-memory sliding-window rate-limit stub for the credentials callback.
+ * In-memory sliding-window rate-limit for the credentials callback.
  *
- * Production replacement (Upstash-backed) lands in S16. This stub lives in
- * Edge middleware memory; in dev a single process makes it effective.
+ * Per-IP bucket of timestamps; window prunes lazily on access. LRU eviction
+ * caps total tracked IPs so a botnet cannot grow memory unbounded. State is
+ * per-Edge-instance — acceptable for a hobby private-league deployment; swap
+ * to Upstash here without changing the call sites if abuse appears in prod.
  */
 
 export const LIMIT = 5;
 export const WINDOW_MS = 15 * 60 * 1000;
+export const MAX_TRACKED_IPS = 10_000;
 
 interface Store {
   buckets: Map<string, number[]>;
@@ -31,14 +34,29 @@ function prune(timestamps: number[], now: number): number[] {
   return i === 0 ? timestamps : timestamps.slice(i);
 }
 
+function touch(store: Store, ip: string, value: number[]): void {
+  // Map preserves insertion order; delete + set moves the entry to the tail,
+  // making the head the least-recently-touched IP.
+  store.buckets.delete(ip);
+  store.buckets.set(ip, value);
+  while (store.buckets.size > MAX_TRACKED_IPS) {
+    const oldest = store.buckets.keys().next().value;
+    if (oldest === undefined) break;
+    store.buckets.delete(oldest);
+  }
+}
+
 export function peek(ip: string, now: number = Date.now()): boolean {
   const store = getStore();
   const existing = store.buckets.get(ip);
   if (!existing) return false;
   const fresh = prune(existing, now);
+  if (fresh.length === 0) {
+    store.buckets.delete(ip);
+    return false;
+  }
   if (fresh.length !== existing.length) {
-    if (fresh.length === 0) store.buckets.delete(ip);
-    else store.buckets.set(ip, fresh);
+    touch(store, ip, fresh);
   }
   return fresh.length >= LIMIT;
 }
@@ -48,7 +66,7 @@ export function increment(ip: string, now: number = Date.now()): void {
   const existing = store.buckets.get(ip) ?? [];
   const fresh = prune(existing, now);
   fresh.push(now);
-  store.buckets.set(ip, fresh);
+  touch(store, ip, fresh);
 }
 
 export function reset(ip: string): void {

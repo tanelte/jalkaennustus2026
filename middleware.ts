@@ -1,10 +1,11 @@
 /**
  * Edge middleware: protects routes via an explicit unauthenticated-redirect to
  * /login, redirects authenticated requests without a selected user to
- * /select-user, and applies an in-memory rate-limit stub on the credentials
+ * /select-user, and applies an in-memory rate-limit on the credentials
  * callback.
  *
- * The rate-limit stub is local-dev-grade only — production uses Upstash (S16).
+ * Rate-limit state is per-Edge-instance (see lib/ratelimit.ts for the
+ * trade-off vs. an external store).
  */
 import NextAuth from 'next-auth';
 import { NextResponse, type NextRequest } from 'next/server';
