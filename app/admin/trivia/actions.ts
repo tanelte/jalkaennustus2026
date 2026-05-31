@@ -8,7 +8,7 @@ import { log } from '@/lib/log';
 import { checkOperator } from '@/lib/operator/require-operator';
 import { recomputeTrivia } from '@/lib/recompute/trivia';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { questions } from '@/db/schema';
+import { questions, teams } from '@/db/schema';
 import { REQUIRED_ANSWERS, ANSWER_MAX_LEN } from '@/app/predict/trivia/constants';
 
 export type ConfirmTriviaError =
@@ -16,6 +16,7 @@ export type ConfirmTriviaError =
   | 'not_operator'
   | 'invalid_position'
   | 'invalid_integer'
+  | 'invalid_team'
   | 'too_long';
 
 export interface ConfirmTriviaState {
@@ -68,6 +69,17 @@ export async function confirmTriviaAnswers(
     .where(eq(questions.tournament_id, tournamentId));
 
   const byPosition = new Map(questionRows.map((q) => [q.position, q]));
+  const hasTeamShape = questionRows.some((q) => q.answer_shape === 'team');
+  const validTeamCodes = hasTeamShape
+    ? new Set(
+        (
+          await db
+            .select({ code: teams.code })
+            .from(teams)
+            .where(eq(teams.tournament_id, tournamentId))
+        ).map((t) => t.code),
+      )
+    : new Set<string>();
 
   for (const p of parsed) {
     const q = byPosition.get(p.position);
@@ -76,6 +88,9 @@ export async function confirmTriviaAnswers(
     }
     if (p.answer.length > 0 && q.answer_shape === 'integer' && !/^-?\d+$/.test(p.answer)) {
       return { error: 'invalid_integer' };
+    }
+    if (p.answer.length > 0 && q.answer_shape === 'team' && !validTeamCodes.has(p.answer)) {
+      return { error: 'invalid_team' };
     }
   }
 

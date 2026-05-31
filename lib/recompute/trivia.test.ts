@@ -7,11 +7,11 @@ import {
 } from './trivia';
 
 const WC2026_OFFICIALS: OfficialQuestion[] = [
-  { position: 1, answer_shape: 'integer', correct_answer: '180', conditional_on_position: null },
-  { position: 2, answer_shape: 'text', correct_answer: 'Mbappe', conditional_on_position: null },
+  { position: 1, answer_shape: 'team', correct_answer: 'ARG', conditional_on_position: null },
+  { position: 2, answer_shape: 'team', correct_answer: 'ENG', conditional_on_position: null },
   { position: 3, answer_shape: 'integer', correct_answer: '12', conditional_on_position: null },
-  { position: 4, answer_shape: 'team', correct_answer: 'ARG', conditional_on_position: null },
-  { position: 5, answer_shape: 'integer', correct_answer: '3', conditional_on_position: 4 },
+  { position: 4, answer_shape: 'text', correct_answer: 'Mbappe', conditional_on_position: null },
+  { position: 5, answer_shape: 'integer', correct_answer: '8', conditional_on_position: 4 },
 ];
 
 function rows(answers: readonly string[]): PlayerAnswerRow[] {
@@ -62,7 +62,7 @@ describe('computePointsForPlayerAnswers', () => {
     const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
       i === 2 ? { ...o, correct_answer: null } : o,
     );
-    const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Mbappe', '8']);
     const result = computePointsForPlayerAnswers(partial, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -74,7 +74,7 @@ describe('computePointsForPlayerAnswers', () => {
     const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
       i < 2 ? o : { ...o, correct_answer: null },
     );
-    const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Mbappe', '8']);
     const result = computePointsForPlayerAnswers(partial, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -86,7 +86,7 @@ describe('computePointsForPlayerAnswers', () => {
     const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
       i === 4 ? { ...o, correct_answer: null } : o,
     );
-    const player = rows(['180', 'Mbappe', '12', 'BRA', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Messi', '8']);
     const result = computePointsForPlayerAnswers(partial, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -95,7 +95,7 @@ describe('computePointsForPlayerAnswers', () => {
   });
 
   it('player has only Q1..Q3 rows: those score, the missing positions are not returned', () => {
-    const player = rows(['180', 'Mbappe', '12']);
+    const player = rows(['ARG', 'ENG', '12']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     expect(result).toHaveLength(3);
     const byPos = Object.fromEntries(
@@ -105,7 +105,7 @@ describe('computePointsForPlayerAnswers', () => {
   });
 
   it('all 5 correct => 14 each, Q5 unlocked by correct Q4', () => {
-    const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Mbappe', '8']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -114,7 +114,7 @@ describe('computePointsForPlayerAnswers', () => {
   });
 
   it('Q4 wrong => Q5 also zero even if Q5 string matches', () => {
-    const player = rows(['180', 'Mbappe', '12', 'BRA', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Messi', '8']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -123,7 +123,7 @@ describe('computePointsForPlayerAnswers', () => {
   });
 
   it('partial Q1..Q3 correct, Q4 correct, Q5 wrong => Q5 zero (independently)', () => {
-    const player = rows(['181', 'Mbappe', '12', 'ARG', '99']);
+    const player = rows(['BRA', 'ENG', '12', 'Mbappe', '99']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     const byPos = Object.fromEntries(
       result.map((r, i) => [i + 1, r.points]),
@@ -132,7 +132,7 @@ describe('computePointsForPlayerAnswers', () => {
   });
 
   it('preserves row ids in the returned updates (so the orchestrator can target them)', () => {
-    const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
+    const player = rows(['ARG', 'ENG', '12', 'Mbappe', '8']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     expect(result.map((r) => r.id)).toEqual(['row-1', 'row-2', 'row-3', 'row-4', 'row-5']);
   });

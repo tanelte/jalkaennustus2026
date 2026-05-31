@@ -11,6 +11,7 @@ const ERROR_COPY: Record<string, string> = {
   not_operator: 'Operaatori õigused puuduvad.',
   invalid_position: 'Vormi viga — proovi uuesti.',
   invalid_integer: 'Numbrilist vastust ootab täisarvu.',
+  invalid_team: 'Vastus peab olema üks turniiri riikidest.',
   too_long: 'Vastus on liiga pikk.',
 };
 
@@ -22,10 +23,17 @@ export interface OfficialQuestionRow {
   currentCorrect: string;
 }
 
+export interface TeamOption {
+  code: string;
+  name_et: string;
+}
+
 export function TriviaConfirmForm({
   questions,
+  teams,
 }: {
   questions: readonly OfficialQuestionRow[];
+  teams: readonly TeamOption[];
 }) {
   const [state, formAction, pending] = useActionState(confirmTriviaAnswers, initialState);
   const [answers, setAnswers] = useState<Record<number, string>>(() =>
@@ -47,8 +55,8 @@ export function TriviaConfirmForm({
       noValidate
     >
       {questions.map((q) => {
-        const inputType = q.answerShape === 'integer' ? 'number' : 'text';
         const inputId = `official_${q.position}`;
+        const isTeam = q.answerShape === 'team';
         return (
           <div key={q.position} className="rounded border p-4">
             <label className="block font-medium" htmlFor={inputId}>
@@ -59,18 +67,37 @@ export function TriviaConfirmForm({
                 Skoorib ainult juhul, kui Q{q.conditionalOnPosition} on õige.
               </p>
             )}
-            <input
-              id={inputId}
-              name={inputId}
-              type={inputType}
-              maxLength={ANSWER_MAX_LEN}
-              value={answers[q.position] ?? ''}
-              onChange={(e) =>
-                setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
-              }
-              className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
-              placeholder="(jätta tühjaks = veel teadmata)"
-            />
+            {isTeam ? (
+              <select
+                id={inputId}
+                name={inputId}
+                value={answers[q.position] ?? ''}
+                onChange={(e) =>
+                  setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
+                }
+                className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
+              >
+                <option value="">(jätta tühjaks = veel teadmata)</option>
+                {teams.map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.name_et}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={inputId}
+                name={inputId}
+                type={q.answerShape === 'integer' ? 'number' : 'text'}
+                maxLength={ANSWER_MAX_LEN}
+                value={answers[q.position] ?? ''}
+                onChange={(e) =>
+                  setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
+                }
+                className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
+                placeholder="(jätta tühjaks = veel teadmata)"
+              />
+            )}
           </div>
         );
       })}

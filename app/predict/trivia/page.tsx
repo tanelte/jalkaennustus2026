@@ -4,8 +4,8 @@ import { requireCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { questions, user_questions } from '@/db/schema';
-import { TriviaForm, type TriviaQuestionRow } from './trivia-form';
+import { questions, teams, user_questions } from '@/db/schema';
+import { TriviaForm, type TeamOption, type TriviaQuestionRow } from './trivia-form';
 import { TRIVIA_STAGE_CODE } from './constants';
 
 export const dynamic = 'force-dynamic';
@@ -44,12 +44,21 @@ async function loadQuestionsWithAnswers(
   }));
 }
 
+async function loadTeams(tournamentId: string): Promise<TeamOption[]> {
+  return db
+    .select({ code: teams.code, name_et: teams.name_et })
+    .from(teams)
+    .where(eq(teams.tournament_id, tournamentId))
+    .orderBy(asc(teams.name_et));
+}
+
 export default async function TriviaPage() {
   const userId = await requireCurrentUserId();
   const tournamentId = await getCurrentTournamentId();
-  const [items, gate] = await Promise.all([
+  const [items, gate, teamOptions] = await Promise.all([
     loadQuestionsWithAnswers(userId, tournamentId),
     isStageOpen(TRIVIA_STAGE_CODE, tournamentId),
+    loadTeams(tournamentId),
   ]);
 
   return (
@@ -89,7 +98,7 @@ export default async function TriviaPage() {
           : 'Etappi ei leitud'}
       </p>
 
-      <TriviaForm questions={items} disabled={!gate.open} />
+      <TriviaForm questions={items} teams={teamOptions} disabled={!gate.open} />
     </main>
   );
 }

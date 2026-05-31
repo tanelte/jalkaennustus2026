@@ -1,8 +1,12 @@
 import { asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { questions } from '@/db/schema';
-import { TriviaConfirmForm, type OfficialQuestionRow } from './trivia-confirm-form';
+import { questions, teams } from '@/db/schema';
+import {
+  TriviaConfirmForm,
+  type OfficialQuestionRow,
+  type TeamOption,
+} from './trivia-confirm-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Trivia kinnitus — Operaator' };
@@ -29,9 +33,20 @@ async function loadOfficials(tournamentId: string): Promise<OfficialQuestionRow[
   }));
 }
 
+async function loadTeams(tournamentId: string): Promise<TeamOption[]> {
+  return db
+    .select({ code: teams.code, name_et: teams.name_et })
+    .from(teams)
+    .where(eq(teams.tournament_id, tournamentId))
+    .orderBy(asc(teams.name_et));
+}
+
 export default async function AdminTriviaPage() {
   const tournamentId = await getCurrentTournamentId();
-  const items = await loadOfficials(tournamentId);
+  const [items, teamOptions] = await Promise.all([
+    loadOfficials(tournamentId),
+    loadTeams(tournamentId),
+  ]);
   const known = items.filter((q) => q.currentCorrect.length > 0).length;
 
   return (
@@ -49,7 +64,7 @@ export default async function AdminTriviaPage() {
         Hetkel teada: <strong>{known}</strong> / {items.length}
       </p>
 
-      <TriviaConfirmForm questions={items} />
+      <TriviaConfirmForm questions={items} teams={teamOptions} />
     </article>
   );
 }

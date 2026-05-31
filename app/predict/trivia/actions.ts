@@ -7,7 +7,7 @@ import { db } from '@/lib/db';
 import { log } from '@/lib/log';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { questions, user_questions } from '@/db/schema';
+import { questions, teams, user_questions } from '@/db/schema';
 import { ANSWER_MAX_LEN, REQUIRED_ANSWERS, TRIVIA_STAGE_CODE } from './constants';
 
 export type SubmitTriviaError =
@@ -17,6 +17,7 @@ export type SubmitTriviaError =
   | 'invalid_position'
   | 'empty_answer'
   | 'invalid_integer'
+  | 'invalid_team'
   | 'too_long'
   | 'unknown_question'
   | 'stage_closed'
@@ -119,6 +120,17 @@ export async function submitTrivia(
   }
 
   const questionByPosition = new Map(questionRows.map((q) => [q.position, q]));
+  const hasTeamShape = questionRows.some((q) => q.answer_shape === 'team');
+  const validTeamCodes = hasTeamShape
+    ? new Set(
+        (
+          await db
+            .select({ code: teams.code })
+            .from(teams)
+            .where(eq(teams.tournament_id, tournamentId))
+        ).map((t) => t.code),
+      )
+    : new Set<string>();
   for (const p of parsed) {
     const q = questionByPosition.get(p.position);
     if (!q) {
@@ -126,6 +138,9 @@ export async function submitTrivia(
     }
     if (q.answer_shape === 'integer' && !/^-?\d+$/.test(p.answer)) {
       return { error: 'invalid_integer' };
+    }
+    if (q.answer_shape === 'team' && !validTeamCodes.has(p.answer)) {
+      return { error: 'invalid_team' };
     }
   }
 
