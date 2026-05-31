@@ -1,5 +1,7 @@
 # Jalkaennustus 2026
 
+[![CI](https://github.com/tanelte/jalkaennustus2026/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tanelte/jalkaennustus2026/actions/workflows/ci.yml)
+
 Next.js 15 App Router + Supabase Postgres prediction platform for FIFA World Cup 2026.
 
 Project context lives in the parent repo:
