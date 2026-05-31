@@ -95,8 +95,7 @@ export default async function FinalPredictPage() {
           F4 neljas koht. Soovi korral võid taktikaliselt panna sama meeskonna
           mitmele kohale — punkte annab vaid see koht, kus meeskond ka päriselt
           finišeerib. Õige meeskond õigel kohal toob punktid (F1 = 60, F2 = 40,
-          F3 = 30, F4 = 20). Vale koht annab 0 punkti — kohtade vahetus
-          (näiteks F1↔F2) ei ole MM-formaadis enam erireeglina lubatud.
+          F3 = 30, F4 = 20).
         </p>
         {candidates.length === 4 ? (
           <p className="mt-2 text-gray-600">
