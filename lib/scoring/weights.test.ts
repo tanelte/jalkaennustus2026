@@ -6,6 +6,8 @@ import {
   MATCH_EXACT_POINTS,
   MATCH_MISS_POINTS,
   MATCH_WINNER_POINTS,
+  TRIVIA_POINTS_PER_CORRECT,
+  TRIVIA_QUESTION_COUNT,
 } from './weights';
 
 // The locked scoring table is the test oracle. If these values change without
@@ -47,5 +49,15 @@ describe('knockout per-round weights — match the locked Final Scoring Table', 
   it('SF: exact 35, winner 18 (stage max 2 × 35 = 70; half locked at 18 not 17.5)', () => {
     expect(KNOCKOUT_EXACT_POINTS_BY_STAGE.sf).toBe(35);
     expect(KNOCKOUT_WINNER_POINTS_BY_STAGE.sf).toBe(18);
+  });
+});
+
+describe('trivia weights — match the locked Final Scoring Table', () => {
+  it('TRIVIA_POINTS_PER_CORRECT is 14 (5 × 14 = 70 = 7% of tournament budget)', () => {
+    expect(TRIVIA_POINTS_PER_CORRECT).toBe(14);
+  });
+
+  it('TRIVIA_QUESTION_COUNT is 5', () => {
+    expect(TRIVIA_QUESTION_COUNT).toBe(5);
   });
 });

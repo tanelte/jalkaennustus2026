@@ -32,3 +32,9 @@ export const KNOCKOUT_WINNER_POINTS_BY_STAGE: Record<KnockoutStageCode, number> 
   qf: 11,
   sf: 18,
 };
+
+// Trivia (S11). Five questions, 14 points each. Q5 scores zero unless Q4 is
+// also correct (Q5-conditional-on-Q4 trick preserved from the legacy DNA).
+// Max trivia points = 70 = 7% of the total tournament point budget.
+export const TRIVIA_POINTS_PER_CORRECT = 14;
+export const TRIVIA_QUESTION_COUNT = 5;
