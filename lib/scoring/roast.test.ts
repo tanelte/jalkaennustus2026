@@ -18,28 +18,28 @@ function row(overrides: Partial<PredictionRow>): PredictionRow {
 }
 
 describe('buildRoast — empty / single-player inputs', () => {
-  it('returns null picks and empty arrays when no predictions exist', () => {
+  it('returns null bestPick and empty arrays when no predictions exist', () => {
     const result = buildRoast({ focusUserId: MART, predictions: [] });
     expect(result).toEqual({
       bestPick: null,
-      worstPick: null,
+      soloWrong: [],
       groupWrong: [],
       soloCorrect: [],
     });
   });
 
-  it('returns null picks when focus user has no rows but others do', () => {
+  it('returns null bestPick when focus user has no rows but others do', () => {
     const result = buildRoast({
       focusUserId: MART,
       predictions: [row({ userId: LIISA, username: 'Liisa', points: 5 })],
     });
     expect(result.bestPick).toBeNull();
-    expect(result.worstPick).toBeNull();
+    expect(result.soloWrong).toEqual([]);
     expect(result.groupWrong).toEqual([]);
     expect(result.soloCorrect).toEqual([]);
   });
 
-  it('finds best and worst pick when focus user is the only player', () => {
+  it('finds best pick when focus user is the only player; no roast lists fire', () => {
     const result = buildRoast({
       focusUserId: MART,
       predictions: [
@@ -48,15 +48,15 @@ describe('buildRoast — empty / single-player inputs', () => {
       ],
     });
     expect(result.bestPick).toMatchObject({ predictionId: 'g1', points: 10 });
-    expect(result.worstPick).toMatchObject({ predictionId: 'g2', points: 0 });
-    // No "others" exist, so neither group-wrong nor solo-correct can fire.
+    // No "others" exist, so none of the roast lists can fire.
+    expect(result.soloWrong).toEqual([]);
     expect(result.groupWrong).toEqual([]);
     expect(result.soloCorrect).toEqual([]);
   });
 });
 
-describe('buildRoast — best / worst pick selection', () => {
-  it('picks the highest- and lowest-scoring focus rows across surfaces', () => {
+describe('buildRoast — best pick selection', () => {
+  it('picks the highest-scoring focus row across surfaces', () => {
     const result = buildRoast({
       focusUserId: MART,
       predictions: [
@@ -68,11 +68,6 @@ describe('buildRoast — best / worst pick selection', () => {
       ],
     });
     expect(result.bestPick).toMatchObject({ predictionKind: 'final', predictionId: 'f1', points: 60 });
-    expect(result.worstPick).toMatchObject({
-      predictionKind: 'best_thirds',
-      predictionId: 'bt1',
-      points: 0,
-    });
   });
 
   it('breaks ties deterministically by (kind, predictionId)', () => {
@@ -87,10 +82,9 @@ describe('buildRoast — best / worst pick selection', () => {
     });
     // 'knockout' < 'match' alphabetically, so the knockout row wins the tiebreak.
     expect(result.bestPick).toMatchObject({ predictionKind: 'knockout', predictionId: 'k1' });
-    expect(result.worstPick).toMatchObject({ predictionKind: 'knockout', predictionId: 'k1' });
   });
 
-  it('coerces negative or NaN points to zero', () => {
+  it('coerces negative or NaN points to zero when selecting best', () => {
     const result = buildRoast({
       focusUserId: MART,
       predictions: [
@@ -100,8 +94,6 @@ describe('buildRoast — best / worst pick selection', () => {
       ],
     });
     expect(result.bestPick).toMatchObject({ predictionId: 'g3', points: 3 });
-    // g1 and g2 both coerce to 0; tiebreak picks the smaller predictionId.
-    expect(result.worstPick).toMatchObject({ predictionId: 'g1', points: 0 });
   });
 });
 
@@ -222,12 +214,74 @@ describe('buildRoast — solo-correct detection', () => {
   });
 });
 
-describe('buildRoast — cross-surface integration', () => {
-  it('combines best/worst, group-wrong, and solo-correct in a realistic mix', () => {
+describe('buildRoast — solo-wrong detection', () => {
+  it('surfaces a pick where everyone else scored but the focus user did not', () => {
     const result = buildRoast({
       focusUserId: MART,
       predictions: [
-        // Final pick — best
+        row({ predictionId: 'g1', userId: MART, points: 0 }),
+        row({ predictionId: 'g1', userId: LIISA, username: 'Liisa', points: 5 }),
+        row({ predictionId: 'g1', userId: ANTS, username: 'Ants', points: 3 }),
+      ],
+    });
+    expect(result.soloWrong).toHaveLength(1);
+    expect(result.soloWrong[0]).toMatchObject({ predictionId: 'g1', points: 0 });
+  });
+
+  it('does not surface solo-wrong when the focus user is the only predictor', () => {
+    const result = buildRoast({
+      focusUserId: MART,
+      predictions: [row({ predictionId: 'g1', userId: MART, points: 0 })],
+    });
+    expect(result.soloWrong).toEqual([]);
+  });
+
+  it('does not surface solo-wrong when any other player also missed', () => {
+    const result = buildRoast({
+      focusUserId: MART,
+      predictions: [
+        row({ predictionId: 'g1', userId: MART, points: 0 }),
+        row({ predictionId: 'g1', userId: LIISA, username: 'Liisa', points: 5 }),
+        row({ predictionId: 'g1', userId: ANTS, username: 'Ants', points: 0 }),
+      ],
+    });
+    expect(result.soloWrong).toEqual([]);
+  });
+
+  it('does not surface solo-wrong when the focus user also scored', () => {
+    const result = buildRoast({
+      focusUserId: MART,
+      predictions: [
+        row({ predictionId: 'g1', userId: MART, points: 3 }),
+        row({ predictionId: 'g1', userId: LIISA, username: 'Liisa', points: 5 }),
+      ],
+    });
+    expect(result.soloWrong).toEqual([]);
+  });
+
+  it('sorts multiple solo-wrong items deterministically', () => {
+    const result = buildRoast({
+      focusUserId: MART,
+      predictions: [
+        row({ predictionKind: 'trivia', predictionId: 'q4', userId: MART, points: 0 }),
+        row({ predictionKind: 'trivia', predictionId: 'q4', userId: LIISA, username: 'Liisa', points: 14 }),
+        row({ predictionKind: 'match', predictionId: 'g7', userId: MART, points: 0 }),
+        row({ predictionKind: 'match', predictionId: 'g7', userId: LIISA, username: 'Liisa', points: 5 }),
+      ],
+    });
+    expect(result.soloWrong.map((s) => `${s.predictionKind}:${s.predictionId}`)).toEqual([
+      'match:g7',
+      'trivia:q4',
+    ]);
+  });
+});
+
+describe('buildRoast — cross-surface integration', () => {
+  it('combines best, solo-wrong, group-wrong, and solo-correct in a realistic mix', () => {
+    const result = buildRoast({
+      focusUserId: MART,
+      predictions: [
+        // Final pick — best (and solo-correct: Liisa missed)
         row({ predictionKind: 'final', predictionId: 'F1', userId: MART, points: 60, label: 'F1: Brasiilia' }),
         row({ predictionKind: 'final', predictionId: 'F1', userId: LIISA, username: 'Liisa', points: 0, label: 'F1: Brasiilia' }),
         // Group-wrong group-stage
@@ -236,20 +290,21 @@ describe('buildRoast — cross-surface integration', () => {
         // Solo-correct trivia
         row({ predictionKind: 'trivia', predictionId: 'q3', userId: MART, points: 14, label: 'Q3 — turniiri parim mängija' }),
         row({ predictionKind: 'trivia', predictionId: 'q3', userId: LIISA, username: 'Liisa', points: 0, label: 'Q3 — turniiri parim mängija' }),
-        // A best-thirds miss — worst pick (lowest points)
+        // Solo-wrong best-thirds — everyone else got grupp C right, Mart didn't
         row({ predictionKind: 'best_thirds', predictionId: 'C', userId: MART, points: 0, label: 'Grupp C — 3. koht' }),
         row({ predictionKind: 'best_thirds', predictionId: 'C', userId: LIISA, username: 'Liisa', points: 8, label: 'Grupp C — 3. koht' }),
+        row({ predictionKind: 'best_thirds', predictionId: 'C', userId: ANTS, username: 'Ants', points: 8, label: 'Grupp C — 3. koht' }),
       ],
     });
 
     expect(result.bestPick).toMatchObject({ predictionKind: 'final', predictionId: 'F1' });
-    expect(result.worstPick?.points).toBe(0);
     expect(result.groupWrong).toHaveLength(1);
     expect(result.groupWrong[0]).toMatchObject({ predictionId: 'g42' });
-    // Two solo-correct rows: F1 (Mart 60, Liisa 0) and Q3 (Mart 14, Liisa 0).
     expect(result.soloCorrect.map((s) => `${s.predictionKind}:${s.predictionId}`)).toEqual([
       'final:F1',
       'trivia:q3',
     ]);
+    expect(result.soloWrong).toHaveLength(1);
+    expect(result.soloWrong[0]).toMatchObject({ predictionKind: 'best_thirds', predictionId: 'C' });
   });
 });
