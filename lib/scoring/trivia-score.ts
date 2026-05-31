@@ -4,7 +4,9 @@ export type TriviaPosition = 1 | 2 | 3 | 4 | 5;
 
 export interface TriviaAnswerInput {
   position: TriviaPosition;
-  isCorrect: boolean;
+  // `null` means "cannot judge yet" — either the official answer is not
+  // yet known or the player has not yet answered this question.
+  isCorrect: boolean | null;
   // Position this answer depends on; null means scored independently.
   // Q5 sets this to 4 (Q5-conditional-on-Q4 trick). Generalised so the rule
   // moves cleanly if the seed ever changes which question is conditional.
@@ -13,7 +15,9 @@ export interface TriviaAnswerInput {
 
 export interface TriviaAnswerScore {
   position: TriviaPosition;
-  points: number;
+  // `null` means we cannot yet say how many points this answer earns —
+  // either the official is missing or a conditional gate is unknown.
+  points: number | null;
 }
 
 export interface TriviaScoreResult {
@@ -27,21 +31,25 @@ const ALL_POSITIONS: readonly TriviaPosition[] = [1, 2, 3, 4, 5];
  * Score one player's trivia answers. Pure — no I/O.
  *
  * Rules:
- * - Each `isCorrect` answer scores TRIVIA_POINTS_PER_CORRECT.
- * - If an answer declares `conditionalOnPosition = N`, it scores zero unless
- *   the answer at position N is itself correct. This is the Q5-conditional-on-Q4
- *   trick preserved from the legacy DNA.
+ * - `isCorrect: true`  → TRIVIA_POINTS_PER_CORRECT.
+ * - `isCorrect: false` → 0.
+ * - `isCorrect: null`  → `null` (cannot judge yet).
+ * - If an answer declares `conditionalOnPosition = N`, its score is gated by
+ *   the answer at position N (Q5-conditional-on-Q4 trick):
+ *     gate `false` → this answer scores 0 (regardless of own correctness).
+ *     gate `null`  → this answer scores `null` (cannot judge the gate yet).
+ *     gate `true`  → this answer scores per its own `isCorrect` value.
  *
- * The caller is responsible for translating raw stored answers into the
- * `isCorrect` boolean per the question's `answer_shape` (integer vs text vs
- * team). This function is purely arithmetic over already-resolved truthiness.
+ * Partial scoring is supported so the leaderboard can move as soon as one
+ * official answer is entered — Q1 + Q2 scored even if Q3/Q4/Q5 are still
+ * unknown.
  */
 export function scoreTrivia(
   answers: readonly TriviaAnswerInput[],
 ): TriviaScoreResult {
   assertOneAnswerPerPosition(answers);
 
-  const correctByPosition = new Map<TriviaPosition, boolean>();
+  const correctByPosition = new Map<TriviaPosition, boolean | null>();
   const conditionalByPosition = new Map<TriviaPosition, TriviaPosition | null>();
   for (const a of answers) {
     correctByPosition.set(a.position, a.isCorrect);
@@ -49,14 +57,18 @@ export function scoreTrivia(
   }
 
   const perAnswer: TriviaAnswerScore[] = ALL_POSITIONS.map((pos) => {
-    const isCorrect = correctByPosition.get(pos) === true;
     const gatePosition = conditionalByPosition.get(pos) ?? null;
-    const gateOpen = gatePosition === null || correctByPosition.get(gatePosition) === true;
-    const points = isCorrect && gateOpen ? TRIVIA_POINTS_PER_CORRECT : 0;
-    return { position: pos, points };
+    if (gatePosition !== null) {
+      const gate = correctByPosition.get(gatePosition) ?? null;
+      if (gate === false) return { position: pos, points: 0 };
+      if (gate === null) return { position: pos, points: null };
+    }
+    const own = correctByPosition.get(pos) ?? null;
+    if (own === null) return { position: pos, points: null };
+    return { position: pos, points: own ? TRIVIA_POINTS_PER_CORRECT : 0 };
   });
 
-  const totalPoints = perAnswer.reduce((sum, a) => sum + a.points, 0);
+  const totalPoints = perAnswer.reduce((sum, a) => sum + (a.points ?? 0), 0);
   return { perAnswer, totalPoints };
 }
 

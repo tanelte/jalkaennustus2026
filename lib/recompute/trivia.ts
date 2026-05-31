@@ -51,10 +51,15 @@ export function judgeAnswer(
 }
 
 /**
- * Pure: given the 5 official questions and one player's 5 answer rows, return
- * the points each row should be re-written to. `null` means we can't judge yet
- * (one or more official answers not entered). When all 5 officials exist we
- * delegate to `scoreTrivia` which applies the Q5-conditional-on-Q4 trick.
+ * Pure: given the 5 official questions and one player's answer rows, return
+ * the points each row should be re-written to. Partial scoring is fully
+ * supported — Q1 + Q2 score as soon as their officials are entered, even
+ * when Q3/Q4/Q5 are still unknown. `null` means "cannot judge yet" (own
+ * official missing or, for a conditional answer, its gate unknown).
+ *
+ * Delegates to `scoreTrivia` (lib/scoring/trivia-score.ts) for the
+ * Q5-conditional-on-Q4 rule — scoring math lives in lib/scoring per
+ * Constitution Rule 6.
  */
 export function computePointsForPlayerAnswers(
   officials: readonly OfficialQuestion[],
@@ -63,39 +68,24 @@ export function computePointsForPlayerAnswers(
   const officialByPosition = new Map(officials.map((o) => [o.position, o]));
   const rowByPosition = new Map(playerRows.map((r) => [r.position, r]));
 
-  const judgements = new Map<TriviaPosition, boolean | null>();
-  for (const pos of TRIVIA_POSITIONS) {
+  const inputs: TriviaAnswerInput[] = TRIVIA_POSITIONS.map((pos) => {
     const off = officialByPosition.get(pos);
     const row = rowByPosition.get(pos);
-    if (!off || !row) {
-      judgements.set(pos, null);
-      continue;
-    }
-    judgements.set(pos, judgeAnswer(row.answer, off.correct_answer, off.answer_shape));
-  }
-
-  // If any official is still missing for a position the player has, that
-  // row's points stay null. We still try to score the rows we can judge.
-  const allKnown = TRIVIA_POSITIONS.every((p) => judgements.get(p) !== null);
-  if (!allKnown) {
-    return playerRows.map((r) => ({
-      id: r.id,
-      points: null,
-    }));
-  }
-
-  const inputs: TriviaAnswerInput[] = TRIVIA_POSITIONS.map((pos) => ({
-    position: pos,
-    isCorrect: judgements.get(pos) === true,
-    conditionalOnPosition: officialByPosition.get(pos)?.conditional_on_position ?? null,
-  }));
+    const isCorrect =
+      off && row ? judgeAnswer(row.answer, off.correct_answer, off.answer_shape) : null;
+    return {
+      position: pos,
+      isCorrect,
+      conditionalOnPosition: off?.conditional_on_position ?? null,
+    };
+  });
 
   const scored = scoreTrivia(inputs);
   const pointsByPosition = new Map(scored.perAnswer.map((s) => [s.position, s.points]));
 
   return playerRows.map((r) => ({
     id: r.id,
-    points: pointsByPosition.get(r.position) ?? 0,
+    points: pointsByPosition.get(r.position) ?? null,
   }));
 }
 

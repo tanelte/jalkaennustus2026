@@ -58,21 +58,50 @@ describe('judgeAnswer', () => {
 });
 
 describe('computePointsForPlayerAnswers', () => {
-  it('returns null points when any official is missing (cannot judge yet)', () => {
+  it('Q3 official missing: Q3 stays null but Q1/Q2/Q4/Q5 are scored', () => {
     const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
       i === 2 ? { ...o, correct_answer: null } : o,
     );
     const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
     const result = computePointsForPlayerAnswers(partial, player);
-    expect(result).toHaveLength(5);
-    for (const r of result) expect(r.points).toBeNull();
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: null, 4: 14, 5: 14 });
   });
 
-  it('returns null when the player has fewer than 5 rows (not all positions yet)', () => {
+  it('only Q1 + Q2 officials known: Q1 + Q2 score, Q3/Q4/Q5 stay null (partial leaderboard motion)', () => {
+    const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
+      i < 2 ? o : { ...o, correct_answer: null },
+    );
+    const player = rows(['180', 'Mbappe', '12', 'ARG', '3']);
+    const result = computePointsForPlayerAnswers(partial, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: null, 4: null, 5: null });
+  });
+
+  it('Q4 wrong + Q5 official still unknown: Q5 is definitively 0 (gate failed)', () => {
+    const partial: OfficialQuestion[] = WC2026_OFFICIALS.map((o, i) =>
+      i === 4 ? { ...o, correct_answer: null } : o,
+    );
+    const player = rows(['180', 'Mbappe', '12', 'BRA', '3']);
+    const result = computePointsForPlayerAnswers(partial, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 14, 4: 0, 5: 0 });
+  });
+
+  it('player has only Q1..Q3 rows: those score, the missing positions are not returned', () => {
     const player = rows(['180', 'Mbappe', '12']);
     const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
     expect(result).toHaveLength(3);
-    for (const r of result) expect(r.points).toBeNull();
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 14 });
   });
 
   it('all 5 correct => 14 each, Q5 unlocked by correct Q4', () => {

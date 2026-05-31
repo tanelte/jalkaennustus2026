@@ -3,7 +3,7 @@ import { scoreTrivia, type TriviaAnswerInput, type TriviaPosition } from './triv
 
 function mk(
   position: TriviaPosition,
-  isCorrect: boolean,
+  isCorrect: boolean | null,
   conditionalOnPosition: TriviaPosition | null = null,
 ): TriviaAnswerInput {
   return { position, isCorrect, conditionalOnPosition };
@@ -116,6 +116,58 @@ describe('scoreTrivia — partial Q1..Q3 permutations', () => {
       expect(r.totalPoints).toBe(independents * 14);
     });
   }
+});
+
+describe('scoreTrivia — partial officials (isCorrect: null)', () => {
+  it('non-conditional: null isCorrect => null points', () => {
+    const r = scoreTrivia([mk(1, null), mk(2, null), mk(3, null), mk(4, null), mk(5, null, 4)]);
+    expect(r.perAnswer).toEqual([
+      { position: 1, points: null },
+      { position: 2, points: null },
+      { position: 3, points: null },
+      { position: 4, points: null },
+      { position: 5, points: null },
+    ]);
+    expect(r.totalPoints).toBe(0);
+  });
+
+  it('only Q1 + Q2 officials known: Q1 + Q2 scored, others null', () => {
+    const r = scoreTrivia([
+      mk(1, true),
+      mk(2, true),
+      mk(3, null),
+      mk(4, null),
+      mk(5, null, 4),
+    ]);
+    expect(r.perAnswer).toEqual([
+      { position: 1, points: 14 },
+      { position: 2, points: 14 },
+      { position: 3, points: null },
+      { position: 4, points: null },
+      { position: 5, points: null }, // gate unknown
+    ]);
+    expect(r.totalPoints).toBe(28);
+  });
+
+  it('Q4 correct, Q5 official unknown: Q5 still null (gate open but own unknown)', () => {
+    const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, true), mk(5, null, 4)]);
+    expect(r.perAnswer[4]).toEqual({ position: 5, points: null });
+    expect(r.totalPoints).toBe(56);
+  });
+
+  it('Q4 wrong, Q5 official unknown: Q5 is definitively 0 (gate failed)', () => {
+    const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, false), mk(5, null, 4)]);
+    expect(r.perAnswer[3]).toEqual({ position: 4, points: 0 });
+    expect(r.perAnswer[4]).toEqual({ position: 5, points: 0 });
+    expect(r.totalPoints).toBe(42);
+  });
+
+  it('Q4 unknown, Q5 correct: Q5 null because gate unknown', () => {
+    const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, null), mk(5, true, 4)]);
+    expect(r.perAnswer[3]).toEqual({ position: 4, points: null });
+    expect(r.perAnswer[4]).toEqual({ position: 5, points: null });
+    expect(r.totalPoints).toBe(42);
+  });
 });
 
 describe('scoreTrivia — invariant guards', () => {
