@@ -18,6 +18,9 @@ import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments
 import { questions, teams, user_questions, users } from '@/db/schema';
 import { TriviaForm, type TeamOption, type TriviaQuestionRow } from './trivia-form';
 import { TRIVIA_STAGE_CODE } from './constants';
+import { loadAllTriviaPeerRowsForQuestions } from '@/lib/peer-predictions/load-trivia-payloads';
+import type { TriviaPeerAnswer } from '@/lib/peer-predictions/load-trivia-payloads';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Trivia — Jalkaennustus' };
@@ -67,6 +70,7 @@ async function loadQuestionsWithAnswers(
     .orderBy(asc(questions.position));
 
   return rows.map((r) => ({
+    id: r.id,
     position: r.position,
     promptEt: r.prompt_et,
     answerShape: r.answer_shape,
@@ -106,6 +110,19 @@ export default async function TriviaPage() {
       loadPlayerContext(userId),
       getMaskedRecoveryEmailForUser(userId),
     ]);
+
+  // E04-S02 — peer-predictions view on trivia. One batched query across every
+  // question in view; per-question results are passed into the existing
+  // client form so its in-progress state is never disturbed by the read-side
+  // decoration.
+  const peerRowsByQuestionId = await loadAllTriviaPeerRowsForQuestions(
+    items.map((q) => q.id),
+    { groupId: session.user.group_id, viewerUserId: userId },
+  );
+  const peerRowsRecord: Record<string, PeerRow<TriviaPeerAnswer>[]> = {};
+  for (const [questionId, rows] of peerRowsByQuestionId.entries()) {
+    peerRowsRecord[questionId] = rows;
+  }
 
   return (
     <>
@@ -150,6 +167,8 @@ export default async function TriviaPage() {
               gateClosed={!gate.open}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
+              groupName={session.user.username}
+              peerRowsByQuestionId={peerRowsRecord}
             />
           </CardContent>
         </Card>
