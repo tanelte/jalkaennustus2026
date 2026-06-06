@@ -2,7 +2,6 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { EnnustabBanner } from '@/components/ennustab-banner';
 import { FinalPeerView } from '@/components/peer-predictions/final-peer-view';
 import { TopBar } from '@/components/top-bar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -159,15 +158,11 @@ export default async function FinalPredictPage() {
           <span>Finaali ennustus</span>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <WindowStatePill gate={gate} />
-          <EnnustabBanner playerName={playerName} />
-        </div>
+        <WindowStatePill gate={gate} />
 
         {/*
-          E04-S05 — page-level peer-view trigger, placed directly under the
-          "Ennustab: <name>" banner, aligned right. Renders nothing for a
-          singleton group (peerRows.length === 0).
+          E04-S05 — page-level peer-view trigger, aligned right. Renders
+          nothing for a singleton group (peerRows.length === 0).
         */}
         <div className="flex justify-end">
           <FinalPeerView

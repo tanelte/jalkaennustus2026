@@ -7,7 +7,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -35,9 +34,9 @@ const STAGE_ICON: Record<StageCode, LucideIcon> = {
 };
 
 /**
- * UX spec §14.2 — Avaleht "Avatud aknad" card. Icon medallion + title +
- * `AVATUD` badge → deadline absolute (relative) → divider → "Sinu seis"
- * progress + bar → full-width green CTA.
+ * UX spec §14.2 — Avaleht "Avatud aknad" card. Icon medallion + title →
+ * deadline absolute (relative) → divider → "Sinu seis" progress + bar →
+ * full-width green CTA.
  */
 export function OpenWindowCard({ window }: OpenWindowCardProps) {
   const Icon = STAGE_ICON[window.code];
@@ -50,7 +49,7 @@ export function OpenWindowCard({ window }: OpenWindowCardProps) {
 
   return (
     <Card className="flex h-full flex-col gap-3 p-4">
-      {/* Top: icon + title + AVATUD */}
+      {/* Top: icon + title */}
       <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
@@ -63,9 +62,6 @@ export function OpenWindowCard({ window }: OpenWindowCardProps) {
             {window.labelEt}
           </h3>
         </div>
-        <Badge variant="secondary" className="uppercase tracking-wide">
-          Avatud
-        </Badge>
       </div>
 
       {/* Deadline */}

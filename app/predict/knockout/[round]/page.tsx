@@ -2,7 +2,6 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { EnnustabBanner } from '@/components/ennustab-banner';
 import { TopBar } from '@/components/top-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { WindowStatePill } from '@/components/window-state-pill';
@@ -171,10 +170,7 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
           <span>{ROUND_LABELS_ET[round]}</span>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <WindowStatePill gate={gate} />
-          <EnnustabBanner playerName={playerName} />
-        </div>
+        <WindowStatePill gate={gate} />
 
         <header>
           <h1 className="text-3xl font-semibold text-text-primary">

@@ -2,7 +2,6 @@ import { and, asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { EnnustabBanner } from '@/components/ennustab-banner';
 import { TopBar } from '@/components/top-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { WindowStatePill } from '@/components/window-state-pill';
@@ -90,7 +89,7 @@ async function loadTeams(tournamentId: string): Promise<TeamOption[]> {
 
 /**
  * UX spec §15.4 — shared prediction shell: dark sticky `AppHeader`,
- * breadcrumb + h1, `WindowStatePill` + `EnnustabBanner`, prediction `Card`,
+ * breadcrumb + h1, `WindowStatePill`, prediction `Card`,
  * and a right-aligned submit footer. Trivia keeps the existing five
  * `QuestionBlock`s; Q5's conditional-on-Q4 trick is described inline via
  * `aria-describedby` per §18.
@@ -145,10 +144,7 @@ export default async function TriviaPage() {
           <span>Trivia ennustus</span>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <WindowStatePill gate={gate} />
-          <EnnustabBanner playerName={playerName} />
-        </div>
+        <WindowStatePill gate={gate} />
 
         <header>
           <h1 className="text-3xl font-semibold text-text-primary">
