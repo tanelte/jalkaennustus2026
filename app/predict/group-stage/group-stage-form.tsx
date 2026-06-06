@@ -122,7 +122,7 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
           return (
             <label
               key={code}
-              className={`flex cursor-pointer items-center justify-center rounded-md border px-2 py-1.5 text-center text-xs transition-colors ${
+              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 py-1.5 text-center text-xs transition-colors ${
                 checked
                   ? 'border-brand-green bg-brand-green text-white'
                   : 'border-border-default bg-surface-card text-text-body hover:border-brand-green/40'
@@ -211,7 +211,7 @@ export function GroupStageForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
         {GROUP_LETTERS.map((letter) => {
           const groupMatches = matchesByLetter.get(letter) ?? [];
           if (groupMatches.length === 0) return null;
@@ -222,7 +222,7 @@ export function GroupStageForm({
               open
               className="group rounded-lg border border-border-default bg-surface-card"
             >
-              <summary className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-text-primary marker:hidden hover:bg-bg-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-text-primary marker:hidden hover:bg-bg-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
                 <span>
                   Grupp {letter}{' '}
                   <span className="ml-1 text-xs font-normal text-text-muted">

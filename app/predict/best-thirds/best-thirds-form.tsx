@@ -50,7 +50,7 @@ export function BestThirdsForm({
   return (
     <form action={formAction} className="space-y-5" noValidate>
       <div
-        className="grid grid-cols-4 gap-3 sm:grid-cols-6"
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         role="group"
         aria-label="Grupid"
       >

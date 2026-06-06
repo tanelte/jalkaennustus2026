@@ -144,7 +144,7 @@ export default async function CrossTournamentPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-surface-card">
+                      <TableHead className="sticky left-0 z-10 bg-surface-card">
                         Koht
                       </TableHead>
                       <TableHead>Mängija</TableHead>
@@ -159,7 +159,7 @@ export default async function CrossTournamentPage() {
                   <TableBody>
                     {rest.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="sticky left-0 bg-inherit">
+                        <TableCell className="sticky left-0 z-10 bg-surface-card">
                           {row.rank}.
                         </TableCell>
                         <TableCell>{row.username}</TableCell>
