@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { startTransition, useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -58,9 +59,37 @@ const INPUT_BASE =
 function renderTriviaPick(payload: TriviaPeerAnswer) {
   return (
     <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 text-sm font-semibold text-text-primary">
-      {payload}
+      {payload.answer}
     </span>
   );
+}
+
+/**
+ * S06 per-peer score annotation. Verbatim `user_questions.points`. Returns
+ * null while the trivia stage is still open / unscored so the popover hides
+ * the chip.
+ */
+function renderTriviaPoints(payload: TriviaPeerAnswer): React.ReactNode {
+  if (payload.points === null) return null;
+  return (
+    <span className="ml-2 inline-flex h-6 items-center rounded-md bg-bg-app px-1.5 text-xs font-medium tabular-nums text-text-muted">
+      {payload.points} p
+    </span>
+  );
+}
+
+/**
+ * S06 consensus predicate: two peers agree when the *normalized* answer
+ * strings match. Normalization mirrors the form's own validator (trim +
+ * case-insensitive). The compare is intentionally lenient so trivial
+ * formatting differences don't break the consensus mark.
+ */
+function isTriviaConsensus(
+  peer: TriviaPeerAnswer,
+  viewer: TriviaPeerAnswer,
+): boolean {
+  const norm = (s: string) => s.trim().toLowerCase();
+  return norm(peer.answer) === norm(viewer.answer);
 }
 
 export function TriviaForm({
@@ -138,6 +167,13 @@ export function TriviaForm({
                   groupName={groupName}
                   peerRows={peerRows}
                   renderPick={renderTriviaPick}
+                  renderPoints={renderTriviaPoints}
+                  viewerPick={
+                    answers[q.position]
+                      ? { answer: answers[q.position], points: null }
+                      : null
+                  }
+                  isConsensus={isTriviaConsensus}
                   size="row"
                   trigger={
                     <PeerViewTrigger

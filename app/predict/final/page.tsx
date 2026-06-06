@@ -13,7 +13,10 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
-import { loadFinalPeerRows } from '@/lib/peer-predictions/load-final-payloads';
+import {
+  loadFinalPeerRows,
+  type FinalPeerPickEntry,
+} from '@/lib/peer-predictions/load-final-payloads';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -80,6 +83,28 @@ async function loadCandidateTeams(tournamentId: string): Promise<CandidateTeamVi
         .orderBy(asc(teams.name_et));
 
   return rows;
+}
+
+/**
+ * S06 helper: turn the viewer's persisted slot→teamId map into the same
+ * ordered F1–F4 list shape the peer-view popover compares against. Returns
+ * `null` until the viewer has picked all four slots (consensus is undefined
+ * for partial orderings).
+ */
+function buildViewerOrdering(
+  picks: Partial<Record<FinalSlot, string>>,
+  candidates: readonly CandidateTeamView[],
+): readonly FinalPeerPickEntry[] | null {
+  const teamById = new Map(candidates.map((c) => [c.id, c.name_et]));
+  const out: FinalPeerPickEntry[] = [];
+  for (const slot of FINAL_SLOTS) {
+    const teamId = picks[slot];
+    if (!teamId) return null;
+    const teamName = teamById.get(teamId);
+    if (!teamName) return null;
+    out.push({ slot, teamId, teamName });
+  }
+  return out;
 }
 
 async function loadCurrentPicks(
@@ -165,11 +190,15 @@ export default async function FinalPredictPage() {
           E04-S05 — page-level peer-view trigger, placed directly under the
           "Ennustab: <name>" banner, aligned right. Renders nothing for a
           singleton group (peerRows.length === 0).
+          S06 — also passes the viewer's currently-persisted F1–F4 ordering so
+          peer rows that pick the same team in each slot get the consensus
+          mark (uses existing tokens; no new color).
         */}
         <div className="flex justify-end">
           <FinalPeerView
             groupName={session.user.username}
             peerRows={peerRows}
+            viewerOrdering={buildViewerOrdering(initialPicks, candidates)}
           />
         </div>
 

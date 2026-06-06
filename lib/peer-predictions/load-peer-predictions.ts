@@ -30,10 +30,71 @@ export interface LoadPeerPredictionsDeps {
   findSystemUserId: () => Promise<string>;
 }
 
+/**
+ * Peer-list ordering mode. Selected once per surface (S06 enhancement #3 —
+ * AC: "the chosen sort is consistent across every surface").
+ *
+ * - `insertion` (legacy default): preserves the order returned by
+ *   `findGroupMembers` (DB-side `ORDER BY user_groups.created_at ASC`).
+ *   Kept as the seam default so existing call sites and tests are unaffected.
+ * - `alphabetical`: case-insensitive ascending by `peerName` (Estonian locale).
+ *   The five production surface loaders (group-stage, trivia, best-thirds,
+ *   knockouts, final) pass this explicitly so the chosen sort is uniform
+ *   across every surface.
+ */
+export type PeerSortMode = 'insertion' | 'alphabetical';
+
 export interface LoadPeerPredictionsOpts<TPayload> {
   groupId: string;
   viewerUserId: string;
   loadPayloads: (peerIds: string[]) => Promise<Map<string, TPayload>>;
+  /** See `PeerSortMode`. Default `'insertion'` for backward compatibility. */
+  sortMode?: PeerSortMode;
+}
+
+/**
+ * Default peer-vs-viewer equality predicate. Deep-equal via JSON for the
+ * small payload shapes the surfaces use (1/X/2-collapsed strings,
+ * `{teamId, teamName, points}` objects, ordered F1–F4 arrays). Best-thirds
+ * and the final stage pass custom predicates because their semantics need
+ * order-insensitive (set) and ordered (sequence) comparison respectively.
+ *
+ * Pure; no I/O. Lives here next to the seam so it has a stable home for
+ * unit-testing under `lib/`.
+ */
+export function defaultIsConsensus<TPayload>(
+  peer: TPayload,
+  viewer: TPayload,
+): boolean {
+  if (peer === viewer) return true;
+  try {
+    return JSON.stringify(peer) === JSON.stringify(viewer);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure: returns a new array with peers sorted per `mode`. Stable: ties in
+ * `alphabetical` (e.g. duplicate names) preserve the input order.
+ */
+export function sortPeerRows<TPayload>(
+  rows: readonly PeerRow<TPayload>[],
+  mode: PeerSortMode,
+): PeerRow<TPayload>[] {
+  if (mode === 'insertion') return rows.slice();
+  // `Array.prototype.sort` is stable in all modern engines. We pair with index
+  // before sorting only if we needed defensive stability across engines; not
+  // required here, but keeps the contract explicit for future readers.
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const cmp = a.r.peerName.localeCompare(b.r.peerName, 'et', {
+        sensitivity: 'base',
+      });
+      return cmp !== 0 ? cmp : a.i - b.i;
+    })
+    .map(({ r }) => r);
 }
 
 /**
@@ -45,7 +106,7 @@ export async function loadPeerPredictionsCore<TPayload>(
   opts: LoadPeerPredictionsOpts<TPayload>,
   deps: LoadPeerPredictionsDeps,
 ): Promise<PeerRow<TPayload>[]> {
-  const { groupId, viewerUserId } = opts;
+  const { groupId, viewerUserId, sortMode = 'insertion' } = opts;
 
   const [members, systemUserId] = await Promise.all([
     deps.findGroupMembers(groupId),
@@ -63,11 +124,13 @@ export async function loadPeerPredictionsCore<TPayload>(
 
   const payloads = await opts.loadPayloads(peers.map((p) => p.user_id));
 
-  return peers.map((p) => ({
+  const rows: PeerRow<TPayload>[] = peers.map((p) => ({
     peerId: p.user_id,
     peerName: p.username,
     submittedPayload: payloads.get(p.user_id) ?? null,
   }));
+
+  return sortPeerRows(rows, sortMode);
 }
 
 async function findGroupMembersDb(groupId: string): Promise<GroupMemberRow[]> {

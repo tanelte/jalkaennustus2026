@@ -31,10 +31,10 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
     const findMatchesForRound = vi.fn(async () => MATCH_ROWS);
     const findPredictionsForGames = vi.fn(async () => [
       // Mart picks home on g-1 (1A) and away on g-2 (2B).
-      { user_id: 'u-mart', game_id: 'g-1', prediction: '1A' },
-      { user_id: 'u-mart', game_id: 'g-2', prediction: '2B' },
+      { user_id: 'u-mart', game_id: 'g-1', prediction: '1A', points: 5 },
+      { user_id: 'u-mart', game_id: 'g-2', prediction: '2B', points: null },
       // Anu picks away on g-1 (2A) only — no pick on g-2.
-      { user_id: 'u-anu', game_id: 'g-1', prediction: '2A' },
+      { user_id: 'u-anu', game_id: 'g-1', prediction: '2A', points: 0 },
     ]);
 
     const out = await loadAllKnockoutPeerRowsForSlotsCore(
@@ -54,12 +54,20 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
       {
         peerId: 'u-mart',
         peerName: 'Mart',
-        submittedPayload: { teamId: 'team-brazil', teamName: 'Brasiilia' },
+        submittedPayload: {
+          teamId: 'team-brazil',
+          teamName: 'Brasiilia',
+          points: 5,
+        },
       },
       {
         peerId: 'u-anu',
         peerName: 'Anu',
-        submittedPayload: { teamId: 'team-germany', teamName: 'Saksamaa' },
+        submittedPayload: {
+          teamId: 'team-germany',
+          teamName: 'Saksamaa',
+          points: 0,
+        },
       },
     ]);
     // g-2: Mart → Spain (away), Anu → null (no pick).
@@ -67,7 +75,11 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
       {
         peerId: 'u-mart',
         peerName: 'Mart',
-        submittedPayload: { teamId: 'team-spain', teamName: 'Hispaania' },
+        submittedPayload: {
+          teamId: 'team-spain',
+          teamName: 'Hispaania',
+          points: null,
+        },
       },
       { peerId: 'u-anu', peerName: 'Anu', submittedPayload: null },
     ]);
@@ -94,9 +106,9 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
         findSystemUserId: async () => 'sys',
         findMatchesForRound: async () => MATCH_ROWS.slice(0, 1),
         findPredictionsForGames: async () => [
-          { user_id: 'u-mart', game_id: 'g-1', prediction: '1A' },
+          { user_id: 'u-mart', game_id: 'g-1', prediction: '1A', points: null },
           // Viewer prediction must NOT appear even if returned by the SQL.
-          { user_id: 'u-viewer', game_id: 'g-1', prediction: '2A' },
+          { user_id: 'u-viewer', game_id: 'g-1', prediction: '2A', points: null },
         ],
       },
     );
@@ -119,8 +131,8 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
         findSystemUserId: async () => 'sys',
         findMatchesForRound: async () => MATCH_ROWS.slice(0, 1),
         findPredictionsForGames: async () => [
-          { user_id: 'sys', game_id: 'g-1', prediction: '1A' },
-          { user_id: 'u-mart', game_id: 'g-1', prediction: '2A' },
+          { user_id: 'sys', game_id: 'g-1', prediction: '1A', points: null },
+          { user_id: 'u-mart', game_id: 'g-1', prediction: '2A', points: null },
         ],
       },
     );
@@ -144,7 +156,7 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
         findMatchesForRound: async () => MATCH_ROWS,
         findPredictionsForGames: async () => [
           // No predictions at all on g-2.
-          { user_id: 'u-mart', game_id: 'g-1', prediction: '1A' },
+          { user_id: 'u-mart', game_id: 'g-1', prediction: '1A', points: null },
         ],
       },
     );
@@ -237,7 +249,7 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
         findSystemUserId: async () => 'sys',
         findMatchesForRound: async () => MATCH_ROWS.slice(0, 1),
         findPredictionsForGames: async () => [
-          { user_id: 'u-mart', game_id: 'g-1', prediction: 'Z' },
+          { user_id: 'u-mart', game_id: 'g-1', prediction: 'Z', points: null },
         ],
       },
     );

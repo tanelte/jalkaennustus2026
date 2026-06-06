@@ -5,11 +5,20 @@ import * as React from 'react';
 import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
-import type { FinalPeerPick } from '@/lib/peer-predictions/load-final-payloads';
+import {
+  isFinalConsensus,
+  type FinalPeerPick,
+  type FinalPeerPickEntry,
+} from '@/lib/peer-predictions/load-final-payloads';
 
 export interface FinalPeerViewProps {
   groupName: string;
   peerRows: PeerRow<FinalPeerPick>[];
+  /**
+   * The viewer's own ordered F1→F4 selection (or null when partial / empty).
+   * Drives the S06 consensus marker.
+   */
+  viewerOrdering?: readonly FinalPeerPickEntry[] | null;
 }
 
 /**
@@ -23,7 +32,11 @@ export interface FinalPeerViewProps {
  * shared `PeerViewTrigger`'s hidden state, so the surrounding layout flexbox
  * collapses cleanly.
  */
-export function FinalPeerView({ groupName, peerRows }: FinalPeerViewProps) {
+export function FinalPeerView({
+  groupName,
+  peerRows,
+  viewerOrdering,
+}: FinalPeerViewProps) {
   const peerTotal = peerRows.length;
   if (peerTotal === 0) return null;
 
@@ -31,16 +44,38 @@ export function FinalPeerView({ groupName, peerRows }: FinalPeerViewProps) {
     (r) => r.submittedPayload !== null,
   ).length;
 
+  // Consensus mark only meaningful with a full F1–F4 viewer ordering.
+  const viewerPayload: FinalPeerPick | null =
+    viewerOrdering && viewerOrdering.length === 4
+      ? { ordering: viewerOrdering, points: null }
+      : null;
+
   return (
     <PeerViewPopover<FinalPeerPick>
       groupName={groupName}
       peerRows={peerRows}
       renderPick={renderFinalPick}
+      renderPoints={renderFinalPoints}
+      viewerPick={viewerPayload}
+      isConsensus={isFinalConsensus}
       size="stage"
       trigger={
         <PeerViewTrigger n={submittedCount} m={peerTotal} size="stage" />
       }
     />
+  );
+}
+
+/**
+ * S06 — render the per-peer summed score next to the ordered F1–F4 list.
+ * Verbatim from `user_teams.points`. Hidden when no row has been scored yet.
+ */
+function renderFinalPoints(payload: FinalPeerPick): React.ReactNode {
+  if (payload.points === null) return null;
+  return (
+    <span className="ml-2 inline-flex h-6 items-center self-start rounded-md bg-bg-app px-1.5 text-xs font-medium tabular-nums text-text-muted">
+      {payload.points} p
+    </span>
   );
 }
 
@@ -53,7 +88,7 @@ export function FinalPeerView({ groupName, peerRows }: FinalPeerViewProps) {
 function renderFinalPick(payload: FinalPeerPick): React.ReactNode {
   return (
     <ol className="flex flex-col gap-1 text-right">
-      {payload.map((entry) => (
+      {payload.ordering.map((entry) => (
         <li
           key={entry.slot}
           className="flex items-center justify-end gap-2 text-xs"

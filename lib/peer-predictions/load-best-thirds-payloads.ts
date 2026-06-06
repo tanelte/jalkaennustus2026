@@ -6,6 +6,7 @@ import {
   type GroupMemberRow,
   type LoadPeerPredictionsDeps,
   type PeerRow,
+  type PeerSortMode,
 } from './load-peer-predictions';
 import { getSystemUserId } from '@/lib/system-user';
 
@@ -18,7 +19,16 @@ import { getSystemUserId } from '@/lib/system-user';
  * deliberately NOT surfaced to peers; the loader treats < 8 rows as not yet
  * submitted (no entry in the returned Map → seam yields `null`).
  */
-export type BestThirdsPeerPick = readonly string[];
+/**
+ * S06: the best-thirds popover now carries the peer's score alongside the
+ * 8-letter set. `groupLetters` is the sorted set; `points` is the sum the
+ * scoring engine already wrote to `user_best_thirds.points` (one row per
+ * letter — the per-row points sum is the per-peer best-thirds total).
+ */
+export interface BestThirdsPeerPick {
+  groupLetters: readonly string[];
+  points: number | null;
+}
 
 export const REQUIRED_BEST_THIRDS_PICKS = 8;
 
@@ -26,7 +36,9 @@ export interface LoadBestThirdsPayloadsDeps {
   findBestThirdsForPeers: (
     tournamentId: string,
     peerIds: string[],
-  ) => Promise<Array<{ user_id: string; group_letter: string }>>;
+  ) => Promise<
+    Array<{ user_id: string; group_letter: string; points: number | null }>
+  >;
 }
 
 /**
@@ -45,18 +57,29 @@ export async function loadBestThirdsPayloadsCore(
   const rows = await deps.findBestThirdsForPeers(tournamentId, peerIds);
 
   // Group rows by user, then keep only users with exactly 8 letters.
-  const byUser = new Map<string, string[]>();
+  // S06 — also accumulate the per-row `points` into a per-peer total. If
+  // every row is null we surface `null` (stage not scored yet); otherwise
+  // null per-row contributions are treated as 0 so the partial-scored case
+  // doesn't collapse a real running tally to null.
+  type Agg = { letters: string[]; sum: number | null };
+  const byUser = new Map<string, Agg>();
   for (const r of rows) {
-    const list = byUser.get(r.user_id);
-    if (list) list.push(r.group_letter);
-    else byUser.set(r.user_id, [r.group_letter]);
+    let agg = byUser.get(r.user_id);
+    if (!agg) {
+      agg = { letters: [], sum: null };
+      byUser.set(r.user_id, agg);
+    }
+    agg.letters.push(r.group_letter);
+    if (r.points !== null) {
+      agg.sum = (agg.sum ?? 0) + r.points;
+    }
   }
 
   const out = new Map<string, BestThirdsPeerPick>();
-  for (const [userId, letters] of byUser.entries()) {
-    if (letters.length !== REQUIRED_BEST_THIRDS_PICKS) continue;
-    const sorted = [...letters].sort();
-    out.set(userId, sorted);
+  for (const [userId, agg] of byUser.entries()) {
+    if (agg.letters.length !== REQUIRED_BEST_THIRDS_PICKS) continue;
+    const sorted = [...agg.letters].sort();
+    out.set(userId, { groupLetters: sorted, points: agg.sum });
   }
   return out;
 }
@@ -75,12 +98,15 @@ async function findGroupMembersDb(groupId: string): Promise<GroupMemberRow[]> {
 async function findBestThirdsForPeersDb(
   tournamentId: string,
   peerIds: string[],
-): Promise<Array<{ user_id: string; group_letter: string }>> {
+): Promise<
+  Array<{ user_id: string; group_letter: string; points: number | null }>
+> {
   if (peerIds.length === 0) return [];
   return db
     .select({
       user_id: user_best_thirds.user_id,
       group_letter: user_best_thirds.group_letter,
+      points: user_best_thirds.points,
     })
     .from(user_best_thirds)
     .where(
@@ -97,7 +123,7 @@ async function findBestThirdsForPeersDb(
  */
 export async function loadBestThirdsPeerRowsCore(
   tournamentId: string,
-  opts: { groupId: string; viewerUserId: string },
+  opts: { groupId: string; viewerUserId: string; sortMode?: PeerSortMode },
   deps: LoadPeerPredictionsDeps & LoadBestThirdsPayloadsDeps,
 ): Promise<PeerRow<BestThirdsPeerPick>[]> {
   return loadPeerPredictionsCore<BestThirdsPeerPick>(
@@ -106,6 +132,7 @@ export async function loadBestThirdsPeerRowsCore(
       viewerUserId: opts.viewerUserId,
       loadPayloads: (peerIds) =>
         loadBestThirdsPayloadsCore(tournamentId, peerIds, deps),
+      sortMode: opts.sortMode,
     },
     deps,
   );
@@ -117,11 +144,32 @@ export async function loadBestThirdsPeerRowsCore(
  */
 export async function loadBestThirdsPeerRows(
   tournamentId: string,
-  opts: { groupId: string; viewerUserId: string },
+  opts: { groupId: string; viewerUserId: string; sortMode?: PeerSortMode },
 ): Promise<PeerRow<BestThirdsPeerPick>[]> {
-  return loadBestThirdsPeerRowsCore(tournamentId, opts, {
-    findGroupMembers: findGroupMembersDb,
-    findSystemUserId: getSystemUserId,
-    findBestThirdsForPeers: findBestThirdsForPeersDb,
-  });
+  return loadBestThirdsPeerRowsCore(
+    tournamentId,
+    { ...opts, sortMode: opts.sortMode ?? 'alphabetical' },
+    {
+      findGroupMembers: findGroupMembersDb,
+      findSystemUserId: getSystemUserId,
+      findBestThirdsForPeers: findBestThirdsForPeersDb,
+    },
+  );
+}
+
+/**
+ * S06 — best-thirds-specific consensus predicate. Two peers agree iff their
+ * 8-letter sets are identical *as sets* (order-insensitive). Compares the
+ * sorted, deduplicated arrays via string equality.
+ *
+ * Exported for the page consumer.
+ */
+export function isBestThirdsConsensus(
+  peer: BestThirdsPeerPick,
+  viewer: BestThirdsPeerPick,
+): boolean {
+  if (peer.groupLetters.length !== viewer.groupLetters.length) return false;
+  const a = [...peer.groupLetters].sort().join('');
+  const b = [...viewer.groupLetters].sort().join('');
+  return a === b;
 }

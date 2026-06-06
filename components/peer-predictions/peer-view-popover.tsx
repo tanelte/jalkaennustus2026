@@ -9,7 +9,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
+import {
+  defaultIsConsensus,
+  type PeerRow,
+} from '@/lib/peer-predictions/load-peer-predictions';
 
 export interface PeerViewPopoverProps<TPayload> {
   groupName: string;
@@ -19,6 +22,27 @@ export interface PeerViewPopoverProps<TPayload> {
   trigger: React.ReactNode;
   /** `row` → narrower popover; `stage` → wider for richer payloads. */
   size?: 'row' | 'stage';
+  /**
+   * S06 enhancement #1 — per-peer score annotation. When supplied, the
+   * popover renders `renderPoints(payload)` to the right of `renderPick`
+   * for each submitted row (and nothing when the call returns `null`).
+   * Surfaces with no scored data simply omit this prop.
+   */
+  renderPoints?: (payload: TPayload) => React.ReactNode | null;
+  /**
+   * S06 enhancement #2 — consensus marker. The viewer's own pick (in the
+   * same payload shape as the peer rows). When provided alongside
+   * `isConsensus`, rows where the predicate returns `true` are visually
+   * distinguished using existing brand tokens (no new color introduced).
+   */
+  viewerPick?: TPayload | null;
+  /**
+   * Per-surface equality predicate. Defaults to deep-JSON equality, which
+   * handles the simple shapes (strings, small objects, ordered arrays of
+   * primitives) used by every current surface. Pass a custom predicate
+   * when payload semantics need it (e.g. unordered set comparison).
+   */
+  isConsensus?: (peer: TPayload, viewer: TPayload) => boolean;
 }
 
 export function PeerViewPopover<TPayload>({
@@ -27,6 +51,9 @@ export function PeerViewPopover<TPayload>({
   renderPick,
   trigger,
   size = 'row',
+  renderPoints,
+  viewerPick,
+  isConsensus,
 }: PeerViewPopoverProps<TPayload>) {
   // Singleton group: the trigger renders null and there's nothing to show.
   // Returning the bare trigger keeps the parent JSX uniform.
@@ -66,19 +93,36 @@ export function PeerViewPopover<TPayload>({
           </p>
         ) : (
           <ul className="divide-y divide-border-default">
-            {submitted.map((p) => (
-              <li
-                key={p.peerId}
-                className="flex items-center justify-between gap-3 py-2 text-sm"
-              >
-                <span className="font-medium text-text-primary">
-                  {p.peerName}
-                </span>
-                <span className="text-text-body">
-                  {renderPick(p.submittedPayload as TPayload)}
-                </span>
-              </li>
-            ))}
+            {submitted.map((p) => {
+              const payload = p.submittedPayload as TPayload;
+              // Consensus marker — only meaningful when the viewer has a pick
+              // to compare against. Uses an existing brand token (the soft
+              // green surface tint already in the design system); no new
+              // color is introduced.
+              const consensus =
+                viewerPick != null &&
+                (isConsensus ?? defaultIsConsensus)(payload, viewerPick);
+              const points = renderPoints ? renderPoints(payload) : null;
+              return (
+                <li
+                  key={p.peerId}
+                  className={cn(
+                    'flex items-center justify-between gap-3 py-2 text-sm',
+                    consensus &&
+                      '-mx-1 rounded-md border-l-2 border-brand-green bg-brand-green-soft px-1',
+                  )}
+                  data-consensus={consensus ? 'true' : undefined}
+                >
+                  <span className="font-medium text-text-primary">
+                    {p.peerName}
+                  </span>
+                  <span className="flex items-center text-text-body">
+                    {renderPick(payload)}
+                    {points}
+                  </span>
+                </li>
+              );
+            })}
             {pending.map((p) => (
               <li
                 key={p.peerId}

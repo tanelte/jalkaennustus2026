@@ -6,6 +6,7 @@ import {
   type GroupMemberRow,
   type LoadPeerPredictionsDeps,
   type PeerRow,
+  type PeerSortMode,
 } from './load-peer-predictions';
 import { getSystemUserId } from '@/lib/system-user';
 
@@ -21,6 +22,11 @@ import { getSystemUserId } from '@/lib/system-user';
 export type KnockoutPeerPick = {
   teamId: string;
   teamName: string;
+  /**
+   * S06: per-peer score annotation. Verbatim from `user_games.points`.
+   * Null when the knockout match has not been scored yet.
+   */
+  points: number | null;
 };
 
 interface MatchTeamRow {
@@ -39,7 +45,14 @@ export interface LoadAllKnockoutPayloadsDeps {
   findPredictionsForGames: (
     gameIds: string[],
     peerIds: string[],
-  ) => Promise<Array<{ user_id: string; game_id: string; prediction: string }>>;
+  ) => Promise<
+    Array<{
+      user_id: string;
+      game_id: string;
+      prediction: string;
+      points: number | null;
+    }>
+  >;
 }
 
 /**
@@ -49,17 +62,26 @@ export interface LoadAllKnockoutPayloadsDeps {
  */
 function pickedTeamFromCode(
   prediction: string | null | undefined,
+  points: number | null,
   match: MatchTeamRow,
 ): KnockoutPeerPick | null {
   if (!prediction) return null;
   const head = prediction[0];
   if (head === '1') {
     if (!match.team_home_id || !match.home_name_et) return null;
-    return { teamId: match.team_home_id, teamName: match.home_name_et };
+    return {
+      teamId: match.team_home_id,
+      teamName: match.home_name_et,
+      points,
+    };
   }
   if (head === '2') {
     if (!match.team_away_id || !match.away_name_et) return null;
-    return { teamId: match.team_away_id, teamName: match.away_name_et };
+    return {
+      teamId: match.team_away_id,
+      teamName: match.away_name_et,
+      points,
+    };
   }
   return null;
 }
@@ -81,6 +103,7 @@ export async function loadAllKnockoutPeerRowsForSlotsCore(
   opts: {
     groupId: string;
     viewerUserId: string;
+    sortMode?: PeerSortMode;
   },
   deps: LoadPeerPredictionsDeps & LoadAllKnockoutPayloadsDeps,
 ): Promise<Map<string, PeerRow<KnockoutPeerPick>[]>> {
@@ -94,6 +117,7 @@ export async function loadAllKnockoutPeerRowsForSlotsCore(
       groupId: opts.groupId,
       viewerUserId: opts.viewerUserId,
       loadPayloads: async () => new Map(),
+      sortMode: opts.sortMode,
     },
     deps,
   );
@@ -115,7 +139,7 @@ export async function loadAllKnockoutPeerRowsForSlotsCore(
   for (const r of predictionRows) {
     const match = matchById.get(r.game_id);
     if (!match) continue;
-    const pick = pickedTeamFromCode(r.prediction, match);
+    const pick = pickedTeamFromCode(r.prediction, r.points, match);
     if (pick) byGame.get(r.game_id)?.set(r.user_id, pick);
   }
 
@@ -191,13 +215,21 @@ async function findMatchesForRoundDb(
 async function findPredictionsForGamesDb(
   gameIds: string[],
   peerIds: string[],
-): Promise<Array<{ user_id: string; game_id: string; prediction: string }>> {
+): Promise<
+  Array<{
+    user_id: string;
+    game_id: string;
+    prediction: string;
+    points: number | null;
+  }>
+> {
   if (gameIds.length === 0 || peerIds.length === 0) return [];
   return db
     .select({
       user_id: user_games.user_id,
       game_id: user_games.game_id,
       prediction: user_games.prediction,
+      points: user_games.points,
     })
     .from(user_games)
     .where(
@@ -219,12 +251,17 @@ async function findPredictionsForGamesDb(
 export async function loadAllKnockoutPeerRowsForSlots(
   round: string,
   gameIds: string[],
-  opts: { groupId: string; viewerUserId: string },
+  opts: { groupId: string; viewerUserId: string; sortMode?: PeerSortMode },
 ): Promise<Map<string, PeerRow<KnockoutPeerPick>[]>> {
-  return loadAllKnockoutPeerRowsForSlotsCore(round, gameIds, opts, {
-    findGroupMembers: findGroupMembersDb,
-    findSystemUserId: getSystemUserId,
-    findMatchesForRound: findMatchesForRoundDb,
-    findPredictionsForGames: findPredictionsForGamesDb,
-  });
+  return loadAllKnockoutPeerRowsForSlotsCore(
+    round,
+    gameIds,
+    { ...opts, sortMode: opts.sortMode ?? 'alphabetical' },
+    {
+      findGroupMembers: findGroupMembersDb,
+      findSystemUserId: getSystemUserId,
+      findMatchesForRound: findMatchesForRoundDb,
+      findPredictionsForGames: findPredictionsForGamesDb,
+    },
+  );
 }

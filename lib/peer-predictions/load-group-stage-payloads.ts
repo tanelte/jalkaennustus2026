@@ -6,6 +6,7 @@ import {
   type GroupMemberRow,
   type LoadPeerPredictionsDeps,
   type PeerRow,
+  type PeerSortMode,
 } from './load-peer-predictions';
 import { getSystemUserId } from '@/lib/system-user';
 import { user_groups, users } from '@/db/schema';
@@ -13,29 +14,47 @@ import { asc, isNull } from 'drizzle-orm';
 
 /**
  * The shape the group-stage popover renders per peer. Mirrors the row's own
- * 1/X/2 picker exactly — the popover-side `renderPick` reads only this value.
+ * 1/X/2 picker exactly — the popover-side `renderPick` reads only `pick`.
  *
  * Note: the group-stage prediction column accepts the platform's expanded
  * five-code form (`1A`, `1B`, `X`, `2A`, `2B`); the popover collapses these
  * into the user-visible 1 / X / 2 shape for parity with the row chip.
+ *
+ * `points` — S06 per-peer score annotation (AC: identical to the leaderboard
+ * value, no recompute). Sourced verbatim from `user_games.points`. Null when
+ * the match has not been scored yet.
  */
-export type GroupStagePeerPick = '1' | 'X' | '2';
+export type GroupStagePeerCollapsedPick = '1' | 'X' | '2';
+
+export interface GroupStagePeerPick {
+  pick: GroupStagePeerCollapsedPick;
+  points: number | null;
+}
 
 export interface LoadGroupStagePayloadsDeps {
   findPredictionsForGame: (
     gameId: string,
     peerIds: string[],
-  ) => Promise<Array<{ user_id: string; prediction: string }>>;
+  ) => Promise<Array<{ user_id: string; prediction: string; points: number | null }>>;
 }
 
 export interface LoadAllGroupStagePayloadsDeps {
   findPredictionsForGames: (
     gameIds: string[],
     peerIds: string[],
-  ) => Promise<Array<{ user_id: string; game_id: string; prediction: string }>>;
+  ) => Promise<
+    Array<{
+      user_id: string;
+      game_id: string;
+      prediction: string;
+      points: number | null;
+    }>
+  >;
 }
 
-function collapsePrediction(raw: string | null | undefined): GroupStagePeerPick | null {
+function collapsePrediction(
+  raw: string | null | undefined,
+): GroupStagePeerCollapsedPick | null {
   if (!raw) return null;
   if (raw === 'X') return 'X';
   const head = raw[0];
@@ -57,7 +76,7 @@ export async function loadGroupStagePayloadsCore(
   const out = new Map<string, GroupStagePeerPick>();
   for (const r of rows) {
     const collapsed = collapsePrediction(r.prediction);
-    if (collapsed) out.set(r.user_id, collapsed);
+    if (collapsed) out.set(r.user_id, { pick: collapsed, points: r.points });
   }
   return out;
 }
@@ -65,12 +84,13 @@ export async function loadGroupStagePayloadsCore(
 async function findPredictionsForGameDb(
   gameId: string,
   peerIds: string[],
-): Promise<Array<{ user_id: string; prediction: string }>> {
+): Promise<Array<{ user_id: string; prediction: string; points: number | null }>> {
   if (peerIds.length === 0) return [];
   return db
     .select({
       user_id: user_games.user_id,
       prediction: user_games.prediction,
+      points: user_games.points,
     })
     .from(user_games)
     .where(
@@ -103,6 +123,7 @@ export async function loadAllGroupStagePeerRowsForMatchesCore(
   opts: {
     groupId: string;
     viewerUserId: string;
+    sortMode?: PeerSortMode;
   },
   deps: LoadPeerPredictionsDeps & LoadAllGroupStagePayloadsDeps,
 ): Promise<Map<string, PeerRow<GroupStagePeerPick>[]>> {
@@ -113,11 +134,14 @@ export async function loadAllGroupStagePeerRowsForMatchesCore(
   // Resolve peer ids once (group members minus viewer minus system user).
   // We reuse `loadPeerPredictionsCore` with a placeholder loader to apply the
   // exact same exclusion rules; then refetch payloads in one batch.
+  // The same `sortMode` is applied here so the per-game arrays inherit the
+  // surface-wide ordering choice.
   const placeholder = await loadPeerPredictionsCore<GroupStagePeerPick>(
     {
       groupId: opts.groupId,
       viewerUserId: opts.viewerUserId,
       loadPayloads: async () => new Map(),
+      sortMode: opts.sortMode,
     },
     deps,
   );
@@ -130,7 +154,10 @@ export async function loadAllGroupStagePeerRowsForMatchesCore(
   for (const id of gameIds) byGame.set(id, new Map());
   for (const r of rows) {
     const collapsed = collapsePrediction(r.prediction);
-    if (collapsed) byGame.get(r.game_id)?.set(r.user_id, collapsed);
+    if (collapsed)
+      byGame
+        .get(r.game_id)
+        ?.set(r.user_id, { pick: collapsed, points: r.points });
   }
 
   const result = new Map<string, PeerRow<GroupStagePeerPick>[]>();
@@ -162,13 +189,21 @@ async function findGroupMembersDb(groupId: string): Promise<GroupMemberRow[]> {
 async function findPredictionsForGamesDb(
   gameIds: string[],
   peerIds: string[],
-): Promise<Array<{ user_id: string; game_id: string; prediction: string }>> {
+): Promise<
+  Array<{
+    user_id: string;
+    game_id: string;
+    prediction: string;
+    points: number | null;
+  }>
+> {
   if (gameIds.length === 0 || peerIds.length === 0) return [];
   return db
     .select({
       user_id: user_games.user_id,
       game_id: user_games.game_id,
       prediction: user_games.prediction,
+      points: user_games.points,
     })
     .from(user_games)
     .where(
@@ -179,13 +214,21 @@ async function findPredictionsForGamesDb(
     );
 }
 
+/**
+ * Production batch loader. S06: defaults to `'alphabetical'` so the peer list
+ * is consistent with the other surfaces.
+ */
 export async function loadAllGroupStagePeerRowsForMatches(
   gameIds: string[],
-  opts: { groupId: string; viewerUserId: string },
+  opts: { groupId: string; viewerUserId: string; sortMode?: PeerSortMode },
 ): Promise<Map<string, PeerRow<GroupStagePeerPick>[]>> {
-  return loadAllGroupStagePeerRowsForMatchesCore(gameIds, opts, {
-    findGroupMembers: findGroupMembersDb,
-    findSystemUserId: getSystemUserId,
-    findPredictionsForGames: findPredictionsForGamesDb,
-  });
+  return loadAllGroupStagePeerRowsForMatchesCore(
+    gameIds,
+    { ...opts, sortMode: opts.sortMode ?? 'alphabetical' },
+    {
+      findGroupMembers: findGroupMembersDb,
+      findSystemUserId: getSystemUserId,
+      findPredictionsForGames: findPredictionsForGamesDb,
+    },
+  );
 }

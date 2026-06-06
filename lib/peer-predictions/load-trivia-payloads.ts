@@ -6,6 +6,7 @@ import {
   type GroupMemberRow,
   type LoadPeerPredictionsDeps,
   type PeerRow,
+  type PeerSortMode,
 } from './load-peer-predictions';
 import { getSystemUserId } from '@/lib/system-user';
 
@@ -22,13 +23,28 @@ import { getSystemUserId } from '@/lib/system-user';
  * NOT relitigated on the peer-view side. We therefore render answers verbatim
  * without any conditional gating in this loader or in the popover.
  */
-export type TriviaPeerAnswer = string;
+export interface TriviaPeerAnswer {
+  /** Verbatim `user_questions.answer` (free text per the column comment). */
+  answer: string;
+  /**
+   * S06: per-peer score annotation. Verbatim from `user_questions.points`.
+   * Null when the question has not been scored yet (e.g. trivia stage open).
+   */
+  points: number | null;
+}
 
 export interface LoadAllTriviaPayloadsDeps {
   findAnswersForQuestions: (
     questionIds: string[],
     peerIds: string[],
-  ) => Promise<Array<{ user_id: string; question_id: string; answer: string }>>;
+  ) => Promise<
+    Array<{
+      user_id: string;
+      question_id: string;
+      answer: string;
+      points: number | null;
+    }>
+  >;
 }
 
 /**
@@ -40,6 +56,7 @@ export async function loadAllTriviaPeerRowsForQuestionsCore(
   opts: {
     groupId: string;
     viewerUserId: string;
+    sortMode?: PeerSortMode;
   },
   deps: LoadPeerPredictionsDeps & LoadAllTriviaPayloadsDeps,
 ): Promise<Map<string, PeerRow<TriviaPeerAnswer>[]>> {
@@ -54,6 +71,7 @@ export async function loadAllTriviaPeerRowsForQuestionsCore(
       groupId: opts.groupId,
       viewerUserId: opts.viewerUserId,
       loadPayloads: async () => new Map(),
+      sortMode: opts.sortMode,
     },
     deps,
   );
@@ -69,7 +87,9 @@ export async function loadAllTriviaPeerRowsForQuestionsCore(
     // own validation rejects empty answers, so an empty string in the column
     // would be an anomaly. Defensive: omit it from the submitted set.
     if (r.answer && r.answer.length > 0) {
-      byQuestion.get(r.question_id)?.set(r.user_id, r.answer);
+      byQuestion
+        .get(r.question_id)
+        ?.set(r.user_id, { answer: r.answer, points: r.points });
     }
   }
 
@@ -102,13 +122,21 @@ async function findGroupMembersDb(groupId: string): Promise<GroupMemberRow[]> {
 async function findAnswersForQuestionsDb(
   questionIds: string[],
   peerIds: string[],
-): Promise<Array<{ user_id: string; question_id: string; answer: string }>> {
+): Promise<
+  Array<{
+    user_id: string;
+    question_id: string;
+    answer: string;
+    points: number | null;
+  }>
+> {
   if (questionIds.length === 0 || peerIds.length === 0) return [];
   return db
     .select({
       user_id: user_questions.user_id,
       question_id: user_questions.question_id,
       answer: user_questions.answer,
+      points: user_questions.points,
     })
     .from(user_questions)
     .where(
@@ -131,11 +159,15 @@ async function findAnswersForQuestionsDb(
  */
 export async function loadAllTriviaPeerRowsForQuestions(
   questionIds: string[],
-  opts: { groupId: string; viewerUserId: string },
+  opts: { groupId: string; viewerUserId: string; sortMode?: PeerSortMode },
 ): Promise<Map<string, PeerRow<TriviaPeerAnswer>[]>> {
-  return loadAllTriviaPeerRowsForQuestionsCore(questionIds, opts, {
-    findGroupMembers: findGroupMembersDb,
-    findSystemUserId: getSystemUserId,
-    findAnswersForQuestions: findAnswersForQuestionsDb,
-  });
+  return loadAllTriviaPeerRowsForQuestionsCore(
+    questionIds,
+    { ...opts, sortMode: opts.sortMode ?? 'alphabetical' },
+    {
+      findGroupMembers: findGroupMembersDb,
+      findSystemUserId: getSystemUserId,
+      findAnswersForQuestions: findAnswersForQuestionsDb,
+    },
+  );
 }

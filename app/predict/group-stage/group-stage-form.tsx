@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown } from 'lucide-react';
+import * as React from 'react';
 import { useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -103,9 +104,43 @@ interface MatchRowProps {
 function renderGroupStagePick(payload: GroupStagePeerPick) {
   return (
     <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 font-mono text-sm font-semibold tabular-nums text-text-primary">
-      {payload}
+      {payload.pick}
     </span>
   );
+}
+
+/**
+ * Per-peer score annotation (S06 enhancement #1). Returns `null` when the
+ * match hasn't been scored yet so the popover suppresses the `+N` chip; the
+ * value is read verbatim from `user_games.points`, never recomputed.
+ */
+function renderGroupStagePoints(payload: GroupStagePeerPick): React.ReactNode {
+  if (payload.points === null) return null;
+  return (
+    <span className="ml-2 inline-flex h-6 items-center rounded-md bg-bg-app px-1.5 text-xs font-medium tabular-nums text-text-muted">
+      {payload.points} p
+    </span>
+  );
+}
+
+/**
+ * Consensus marker (S06 enhancement #2). Two peers agree when they map to
+ * the same 1/X/2 collapsed code — same comparison the form's own picker uses
+ * implicitly. Compares the collapsed `pick` only; points are ignored.
+ */
+function isGroupStageConsensus(
+  peer: GroupStagePeerPick,
+  viewer: GroupStagePeerPick,
+): boolean {
+  return peer.pick === viewer.pick;
+}
+
+function collapseViewerCode(
+  code: GroupStagePredictionCode | null,
+): GroupStagePeerPick | null {
+  if (!code) return null;
+  if (code === 'X') return { pick: 'X', points: null };
+  return { pick: code[0] === '1' ? '1' : '2', points: null };
 }
 
 function MatchRow({
@@ -152,6 +187,9 @@ function MatchRow({
             groupName={groupName}
             peerRows={peerRows}
             renderPick={renderGroupStagePick}
+            renderPoints={renderGroupStagePoints}
+            viewerPick={collapseViewerCode(pick)}
+            isConsensus={isGroupStageConsensus}
             size="row"
             trigger={
               <PeerViewTrigger

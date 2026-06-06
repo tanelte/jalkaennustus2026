@@ -6,6 +6,7 @@ import {
   type GroupMemberRow,
   type LoadPeerPredictionsDeps,
   type PeerRow,
+  type PeerSortMode,
 } from './load-peer-predictions';
 import { getSystemUserId } from '@/lib/system-user';
 
@@ -19,11 +20,21 @@ import { getSystemUserId } from '@/lib/system-user';
  */
 export type FinalSlotCode = 'F1' | 'F2' | 'F3' | 'F4';
 
-export type FinalPeerPick = readonly {
+export interface FinalPeerPickEntry {
   slot: FinalSlotCode;
   teamId: string;
   teamName: string;
-}[];
+}
+
+/**
+ * S06: `ordering` is the original F1→F4 ordered list. `points` is the peer's
+ * sum across the 4 final slots (verbatim from `user_teams.points`, never
+ * recomputed). Null when no row has been scored yet.
+ */
+export interface FinalPeerPick {
+  ordering: readonly FinalPeerPickEntry[];
+  points: number | null;
+}
 
 const FINAL_ROUND_VALUE = 'final';
 const FINAL_SLOT_ORDER: readonly FinalSlotCode[] = ['F1', 'F2', 'F3', 'F4'];
@@ -38,6 +49,7 @@ interface FinalsRow {
   slot: string;
   team_id: string;
   team_name: string;
+  points: number | null;
 }
 
 export interface LoadFinalPayloadsDeps {
@@ -58,7 +70,8 @@ export interface LoadFinalPayloadsDeps {
 export function groupFinalsByPeer(
   rows: readonly FinalsRow[],
 ): Map<string, FinalPeerPick> {
-  const byPeer = new Map<string, Map<FinalSlotCode, { teamId: string; teamName: string }>>();
+  type SlotEntry = { teamId: string; teamName: string; points: number | null };
+  const byPeer = new Map<string, Map<FinalSlotCode, SlotEntry>>();
   for (const r of rows) {
     if (!isFinalSlot(r.slot)) continue;
     let slots = byPeer.get(r.user_id);
@@ -69,13 +82,17 @@ export function groupFinalsByPeer(
     // Defensive: if duplicate rows for the same (user, slot) somehow exist,
     // last-write-wins is harmless because the DB enforces a UNIQUE on
     // (user_id, tournament_id, round, slot).
-    slots.set(r.slot, { teamId: r.team_id, teamName: r.team_name });
+    slots.set(r.slot, {
+      teamId: r.team_id,
+      teamName: r.team_name,
+      points: r.points,
+    });
   }
 
   const out = new Map<string, FinalPeerPick>();
   for (const [userId, slots] of byPeer) {
     if (slots.size !== FULL_ORDERING_SIZE) continue; // partial ordering → not-submitted
-    const ordered: FinalPeerPick = FINAL_SLOT_ORDER.map((slot) => {
+    const ordered: FinalPeerPickEntry[] = FINAL_SLOT_ORDER.map((slot) => {
       const entry = slots.get(slot);
       // Safety: with size === 4 and all keys in FINAL_SLOT_ORDER, every slot
       // must exist. Cast asserted here so the type stays clean.
@@ -85,7 +102,15 @@ export function groupFinalsByPeer(
         teamName: entry!.teamName,
       };
     });
-    out.set(userId, ordered);
+    // Sum per-row points, treating any null contribution as 0 once at least
+    // one row has been scored. If every row is null we surface `null` so the
+    // popover suppresses the `+N` chip.
+    let sum: number | null = null;
+    for (const slot of FINAL_SLOT_ORDER) {
+      const p = slots.get(slot)!.points;
+      if (p !== null) sum = (sum ?? 0) + p;
+    }
+    out.set(userId, { ordering: ordered, points: sum });
   }
   return out;
 }
@@ -93,6 +118,7 @@ export function groupFinalsByPeer(
 export interface LoadFinalPeerRowsOpts {
   groupId: string;
   viewerUserId: string;
+  sortMode?: PeerSortMode;
 }
 
 /**
@@ -113,6 +139,7 @@ export async function loadFinalPeerRowsCore(
         const rows = await deps.findFinalsForTournament(tournamentId, peerIds);
         return groupFinalsByPeer(rows);
       },
+      sortMode: opts.sortMode,
     },
     deps,
   );
@@ -140,6 +167,7 @@ async function findFinalsForTournamentDb(
       slot: user_teams.slot,
       team_id: user_teams.team_id,
       team_name: teams.name_et,
+      points: user_teams.points,
     })
     .from(user_teams)
     .innerJoin(teams, eq(teams.id, user_teams.team_id))
@@ -166,9 +194,34 @@ export async function loadFinalPeerRows(
   tournamentId: string,
   opts: LoadFinalPeerRowsOpts,
 ): Promise<PeerRow<FinalPeerPick>[]> {
-  return loadFinalPeerRowsCore(tournamentId, opts, {
-    findGroupMembers: findGroupMembersDb,
-    findSystemUserId: getSystemUserId,
-    findFinalsForTournament: findFinalsForTournamentDb,
-  });
+  return loadFinalPeerRowsCore(
+    tournamentId,
+    { ...opts, sortMode: opts.sortMode ?? 'alphabetical' },
+    {
+      findGroupMembers: findGroupMembersDb,
+      findSystemUserId: getSystemUserId,
+      findFinalsForTournament: findFinalsForTournamentDb,
+    },
+  );
+}
+
+/**
+ * S06 — final-stage consensus predicate. Two peers agree iff their ordered
+ * F1→F4 sequences pick the same team in each slot. (Order matters: picking
+ * the same four teams in a different order is NOT consensus, mirroring how
+ * the scoring engine treats the ordering.)
+ *
+ * Exported for the page consumer.
+ */
+export function isFinalConsensus(
+  peer: FinalPeerPick,
+  viewer: FinalPeerPick,
+): boolean {
+  if (peer.ordering.length !== viewer.ordering.length) return false;
+  for (let i = 0; i < peer.ordering.length; i++) {
+    const a = peer.ordering[i];
+    const b = viewer.ordering[i];
+    if (a.slot !== b.slot || a.teamId !== b.teamId) return false;
+  }
+  return true;
 }

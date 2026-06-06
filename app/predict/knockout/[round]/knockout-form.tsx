@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -91,6 +92,58 @@ function renderKnockoutPick(payload: KnockoutPeerPick) {
   );
 }
 
+/**
+ * S06 per-peer score annotation. Verbatim `user_games.points`; null while
+ * the knockout match has not been scored yet → popover hides the chip.
+ */
+function renderKnockoutPoints(payload: KnockoutPeerPick): React.ReactNode {
+  if (payload.points === null) return null;
+  return (
+    <span className="ml-2 inline-flex h-6 items-center rounded-md bg-bg-app px-1.5 text-xs font-medium tabular-nums text-text-muted">
+      {payload.points} p
+    </span>
+  );
+}
+
+/**
+ * S06 consensus predicate. Two peers agree iff they picked the same team
+ * (regardless of normaalaeg vs lisaaeg — the popover only renders the team
+ * name; the user-visible value is the team, not the regulation/ET split).
+ */
+function isKnockoutConsensus(
+  peer: KnockoutPeerPick,
+  viewer: KnockoutPeerPick,
+): boolean {
+  return peer.teamId === viewer.teamId;
+}
+
+/**
+ * Map the form's selected 1A/1B/2A/2B code into the `KnockoutPeerPick`
+ * shape so the popover can compare directly.
+ */
+function viewerPickFromCode(
+  code: string | null,
+  match: { homeTeam: KnockoutTeamView | null; awayTeam: KnockoutTeamView | null },
+): KnockoutPeerPick | null {
+  if (!code) return null;
+  const head = code[0];
+  if (head === '1' && match.homeTeam) {
+    return {
+      teamId: match.homeTeam.id,
+      teamName: match.homeTeam.name_et,
+      points: null,
+    };
+  }
+  if (head === '2' && match.awayTeam) {
+    return {
+      teamId: match.awayTeam.id,
+      teamName: match.awayTeam.name_et,
+      points: null,
+    };
+  }
+  return null;
+}
+
 function MatchRow({
   match,
   pick,
@@ -126,6 +179,9 @@ function MatchRow({
             groupName={groupName}
             peerRows={peerRows}
             renderPick={renderKnockoutPick}
+            renderPoints={renderKnockoutPoints}
+            viewerPick={viewerPickFromCode(pick, match)}
+            isConsensus={isKnockoutConsensus}
             size="row"
             trigger={
               <PeerViewTrigger

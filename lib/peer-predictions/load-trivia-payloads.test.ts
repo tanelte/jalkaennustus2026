@@ -11,11 +11,11 @@ describe('loadAllTriviaPeerRowsForQuestionsCore', () => {
     ]);
     const findSystemUserId = vi.fn(async () => 'sys');
     const findAnswersForQuestions = vi.fn(async () => [
-      { user_id: 'u-mart', question_id: 'q-1', answer: 'Brasiilia' },
-      { user_id: 'u-mart', question_id: 'q-2', answer: '7' },
-      { user_id: 'u-anu', question_id: 'q-1', answer: 'Argentina' },
+      { user_id: 'u-mart', question_id: 'q-1', answer: 'Brasiilia', points: 3 },
+      { user_id: 'u-mart', question_id: 'q-2', answer: '7', points: null },
+      { user_id: 'u-anu', question_id: 'q-1', answer: 'Argentina', points: 0 },
       // q-5: peer submitted an answer — peer view shows it verbatim, no Q4-trick filter
-      { user_id: 'u-anu', question_id: 'q-5', answer: 'Saksamaa' },
+      { user_id: 'u-anu', question_id: 'q-5', answer: 'Saksamaa', points: null },
     ]);
 
     const out = await loadAllTriviaPeerRowsForQuestionsCore(
@@ -29,11 +29,23 @@ describe('loadAllTriviaPeerRowsForQuestionsCore', () => {
     );
 
     expect(out.get('q-1')).toEqual([
-      { peerId: 'u-mart', peerName: 'Mart', submittedPayload: 'Brasiilia' },
-      { peerId: 'u-anu', peerName: 'Anu', submittedPayload: 'Argentina' },
+      {
+        peerId: 'u-mart',
+        peerName: 'Mart',
+        submittedPayload: { answer: 'Brasiilia', points: 3 },
+      },
+      {
+        peerId: 'u-anu',
+        peerName: 'Anu',
+        submittedPayload: { answer: 'Argentina', points: 0 },
+      },
     ]);
     expect(out.get('q-2')).toEqual([
-      { peerId: 'u-mart', peerName: 'Mart', submittedPayload: '7' },
+      {
+        peerId: 'u-mart',
+        peerName: 'Mart',
+        submittedPayload: { answer: '7', points: null },
+      },
       { peerId: 'u-anu', peerName: 'Anu', submittedPayload: null },
     ]);
     expect(out.get('q-3')).toEqual([
@@ -43,7 +55,11 @@ describe('loadAllTriviaPeerRowsForQuestionsCore', () => {
     // Q5: shows whatever the peer submitted regardless of Q4 correctness.
     expect(out.get('q-5')).toEqual([
       { peerId: 'u-mart', peerName: 'Mart', submittedPayload: null },
-      { peerId: 'u-anu', peerName: 'Anu', submittedPayload: 'Saksamaa' },
+      {
+        peerId: 'u-anu',
+        peerName: 'Anu',
+        submittedPayload: { answer: 'Saksamaa', points: null },
+      },
     ]);
 
     expect(findAnswersForQuestions).toHaveBeenCalledOnce();
@@ -65,15 +81,33 @@ describe('loadAllTriviaPeerRowsForQuestionsCore', () => {
         ],
         findSystemUserId: async () => 'sys',
         findAnswersForQuestions: async () => [
-          { user_id: 'u-viewer', question_id: 'q-1', answer: 'self' },
-          { user_id: 'sys', question_id: 'q-1', answer: 'official' },
-          { user_id: 'u-mart', question_id: 'q-1', answer: 'Brasiilia' },
+          {
+            user_id: 'u-viewer',
+            question_id: 'q-1',
+            answer: 'self',
+            points: null,
+          },
+          {
+            user_id: 'sys',
+            question_id: 'q-1',
+            answer: 'official',
+            points: null,
+          },
+          {
+            user_id: 'u-mart',
+            question_id: 'q-1',
+            answer: 'Brasiilia',
+            points: null,
+          },
         ],
       },
     );
     const rows = out.get('q-1') ?? [];
     expect(rows.map((r) => r.peerId)).toEqual(['u-mart']);
-    expect(rows[0].submittedPayload).toBe('Brasiilia');
+    expect(rows[0].submittedPayload).toEqual({
+      answer: 'Brasiilia',
+      points: null,
+    });
   });
 
   it('returns empty arrays per questionId when the viewer is the only peer (singleton group)', async () => {
@@ -121,7 +155,7 @@ describe('loadAllTriviaPeerRowsForQuestionsCore', () => {
         ],
         findSystemUserId: async () => 'sys',
         findAnswersForQuestions: async () => [
-          { user_id: 'u-mart', question_id: 'q-1', answer: '' },
+          { user_id: 'u-mart', question_id: 'q-1', answer: '', points: null },
         ],
       },
     );

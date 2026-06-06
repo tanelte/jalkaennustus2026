@@ -115,6 +115,7 @@ export default async function BestThirdsPage() {
         <BestThirdsPeerBar
           groupName={session.user.username}
           peerRows={peerRows}
+          viewerPick={picks}
         />
 
         <header>
