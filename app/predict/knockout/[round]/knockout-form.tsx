@@ -1,12 +1,14 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { SubmitButton } from '@/components/submit-button';
 import {
   submitKnockoutPicks,
   type SubmitKnockoutPicksState,
 } from './actions';
-import type { KnockoutPredictionCode } from './constants';
-import type { KnockoutRound } from './constants';
+import type { KnockoutPredictionCode, KnockoutRound } from './constants';
 
 export interface KnockoutTeamView {
   id: string;
@@ -71,22 +73,28 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
 
   return (
     <fieldset
-      className={`rounded border p-3 ${isTbd ? 'bg-gray-50' : 'bg-white'}`}
+      className={`rounded-lg border border-border-default p-3 ${
+        isTbd ? 'bg-bg-app' : 'bg-surface-card'
+      }`}
       disabled={isTbd || disabled}
     >
-      <legend className="px-1 text-xs uppercase tracking-wide text-gray-500">
+      <legend className="px-1 text-xs uppercase tracking-wide text-text-muted">
         {match.roundLabel} — {formatKickoff(match.kickoffAt)}
       </legend>
-      <div className="text-sm font-medium text-gray-900">
-        {homeLabel} <span className="text-gray-400">vs</span> {awayLabel}
+      <div className="text-sm font-medium text-text-primary">
+        {homeLabel} <span className="text-text-muted">vs</span> {awayLabel}
       </div>
 
       {isTbd ? (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-text-muted">
           Meeskonnad selguvad eelmise vooru tulemuste järel.
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+        <div
+          className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2"
+          role="radiogroup"
+          aria-label={`${homeLabel} vs ${awayLabel}`}
+        >
           {(['1A', '1B', '2A', '2B'] as const).map((code) => {
             const checked = pick === code;
             // Substitute the team name into the legend so the options are
@@ -97,10 +105,10 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
             return (
               <label
                 key={code}
-                className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-1 ${
+                className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                   checked
-                    ? 'border-black bg-black text-white'
-                    : 'border-gray-300 bg-white text-gray-900'
+                    ? 'border-brand-green bg-brand-green text-white'
+                    : 'border-border-default bg-surface-card text-text-body hover:border-brand-green/40'
                 }`}
               >
                 <input
@@ -128,9 +136,15 @@ export interface KnockoutFormProps {
   round: KnockoutRound;
   matches: readonly KnockoutMatchView[];
   disabled: boolean;
+  gateClosed?: boolean;
 }
 
-export function KnockoutForm({ round, matches, disabled }: KnockoutFormProps) {
+export function KnockoutForm({
+  round,
+  matches,
+  disabled,
+  gateClosed = false,
+}: KnockoutFormProps) {
   const [state, formAction, pending] = useActionState(
     submitKnockoutPicks,
     initialState,
@@ -153,7 +167,7 @@ export function KnockoutForm({ round, matches, disabled }: KnockoutFormProps) {
   const pickedCount = Object.keys(picks).length;
 
   return (
-    <form action={formAction} className="mt-6 space-y-3" noValidate>
+    <form action={formAction} className="space-y-3" noValidate>
       <input type="hidden" name="round" value={round} />
 
       <div className="space-y-3">
@@ -168,28 +182,40 @@ export function KnockoutForm({ round, matches, disabled }: KnockoutFormProps) {
         ))}
       </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
-        Valitud: <strong>{pickedCount}</strong> / {totalPickable}
+      <p className="text-sm text-text-muted" aria-live="polite">
+        Valitud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
+        / {totalPickable}
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
+        <p role="status" className="text-sm text-brand-green">
           Ennustus salvestatud.
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={disabled || pending || pickedCount === 0}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Salvestan…' : 'Salvesta valikud'}
-      </button>
+      <div className="flex justify-end pt-2">
+        {gateClosed ? (
+          <Badge
+            variant="outline"
+            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+          >
+            Suletud
+          </Badge>
+        ) : (
+          <SubmitButton
+            pendingOverride={pending}
+            disabled={pickedCount === 0}
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            Salvesta valikud
+          </SubmitButton>
+        )}
+      </div>
     </form>
   );
 }

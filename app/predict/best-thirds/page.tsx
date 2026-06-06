@@ -1,15 +1,45 @@
 import { and, asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
-import { requireCurrentUserId } from '@/lib/current-user';
+import { redirect } from 'next/navigation';
+
+import { EnnustabBanner } from '@/components/ennustab-banner';
+import { TopBar } from '@/components/top-bar';
+import { Card, CardContent } from '@/components/ui/card';
+import { WindowStatePill } from '@/components/window-state-pill';
+import { auth, signOut } from '@/lib/auth';
+import {
+  clearCurrentUserCookie,
+  requireCurrentUserId,
+} from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
-import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { user_best_thirds } from '@/db/schema';
+import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
+import { user_best_thirds, users } from '@/db/schema';
 import { BestThirdsForm } from './best-thirds-form';
 import { BEST_THIRDS_STAGE_CODE } from './constants';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Best-thirds — Jalkaennustus' };
+
+async function logoutAction() {
+  'use server';
+  await clearCurrentUserCookie();
+  await signOut({ redirectTo: '/login' });
+}
+
+async function loadPlayerContext(
+  userId: string,
+): Promise<{ playerName: string; isOperator: boolean }> {
+  const rows = await db
+    .select({ username: users.username, is_operator: users.is_operator })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return {
+    playerName: rows[0]?.username ?? 'tundmatu mängija',
+    isOperator: rows[0]?.is_operator ?? false,
+  };
+}
 
 async function loadCurrentPicks(userId: string, tournamentId: string): Promise<string[]> {
   const rows = await db
@@ -25,49 +55,70 @@ async function loadCurrentPicks(userId: string, tournamentId: string): Promise<s
   return rows.map((r) => r.group_letter);
 }
 
+/**
+ * UX spec §15.4 — shared prediction shell wraps the best-thirds tile grid.
+ * The exactly-8 server-side validation rule is preserved (see story S05
+ * §Out and §20.4); this page only re-skins the surface.
+ */
 export default async function BestThirdsPage() {
+  const session = await auth();
+  if (!session?.user?.group_id) redirect('/login');
+
   const userId = await requireCurrentUserId();
   const tournamentId = await getCurrentTournamentId();
-  const [picks, gate] = await Promise.all([
+  const tournamentChip = resolveTournamentCode();
+
+  const [picks, gate, { playerName, isOperator }] = await Promise.all([
     loadCurrentPicks(userId, tournamentId),
     isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId),
+    loadPlayerContext(userId),
   ]);
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <header>
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
-          ← Tagasi
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Best-thirds ennustus</h1>
-      </header>
+    <>
+      <TopBar
+        groupName={session.user.username}
+        playerName={playerName}
+        isOperator={isOperator}
+        tournamentChip={tournamentChip}
+        logoutAction={logoutAction}
+      />
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+        <nav aria-label="Asukoht" className="text-sm text-text-muted">
+          <Link href="/" className="hover:underline">
+            Avaleht
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <span>Best-thirds</span>
+        </nav>
 
-      <section className="mt-4 rounded border bg-gray-50 p-4 text-sm text-gray-700">
-        <p className="font-medium">Kuidas best-thirds toimib?</p>
-        <p className="mt-2">
-          MM 2026 alagrupiturniiril mängib 12 alagruppi (A–L), millest igast pääseb
-          edasi 2 paremat. Lisaks pääseb 16-paari faasi (Round of 32) 8 paremat
-          kolmandat kohta kõigist alagruppidest, mida FIFA hindab võitude, väravate
-          vahe ja löödud väravate alusel.
-        </p>
-        <p className="mt-2">
-          Märgi tabelist <strong>täpselt 8 grupi tähte</strong>, mille kolmas koht
-          sinu hinnangul edasi pääseb. Iga õige tähe eest saad{' '}
-          <strong>8 punkti</strong> (kokku max 64).
-        </p>
-      </section>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <WindowStatePill gate={gate} />
+          <EnnustabBanner playerName={playerName} />
+        </div>
 
-      {!gate.open && (
-        <p role="alert" className="mt-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900">
-          {gate.reason === 'closed'
-            ? 'Aken on suletud — uusi valikuid enam vastu ei võeta.'
-            : gate.reason === 'not_yet'
-            ? `Aken avaneb ${gate.opensAt?.toISOString() ?? ''}.`
-            : 'Best-thirds etappi ei leitud.'}
-        </p>
-      )}
+        <header>
+          <h1 className="text-3xl font-semibold text-text-primary">
+            Best-thirds ennustus
+          </h1>
+          <p className="mt-1 text-sm text-text-muted">
+            MM 2026 alagrupiturniiril mängib 12 alagruppi (A–L). Lisaks 16-paari
+            faasi pääseb <strong>8 paremat kolmandat kohta</strong>. Märgi
+            tabelist täpselt 8 grupi tähte — iga õige tähe eest{' '}
+            <strong>8 punkti</strong> (kokku max 64).
+          </p>
+        </header>
 
-      <BestThirdsForm initialPicks={picks} />
-    </main>
+        <Card>
+          <CardContent className="p-5 sm:p-6">
+            <BestThirdsForm
+              initialPicks={picks}
+              disabled={!gate.open}
+              gateClosed={!gate.open}
+            />
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }

@@ -1,13 +1,21 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
 import { EnnustabBanner } from '@/components/ennustab-banner';
+import { TopBar } from '@/components/top-bar';
+import { Card, CardContent } from '@/components/ui/card';
 import { WindowStatePill } from '@/components/window-state-pill';
-import { requireCurrentUserId } from '@/lib/current-user';
+import { auth, signOut } from '@/lib/auth';
+import {
+  clearCurrentUserCookie,
+  requireCurrentUserId,
+} from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { scoreMatchPrediction } from '@/lib/scoring/match-score';
 import type { ResultCode } from '@/lib/scoring/types';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
-import { getCurrentTournamentId } from '@/lib/tournaments/current';
+import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, result_codes, teams, user_games, users } from '@/db/schema';
 import {
   GROUP_LETTERS,
@@ -26,17 +34,28 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Grupimängud — Jalkaennustus' };
 
+async function logoutAction() {
+  'use server';
+  await clearCurrentUserCookie();
+  await signOut({ redirectTo: '/login' });
+}
+
 function isGroupLetter(value: string): value is GroupLetter {
   return (GROUP_LETTERS as readonly string[]).includes(value);
 }
 
-async function loadActiveUsername(userId: string): Promise<string> {
+async function loadPlayerContext(
+  userId: string,
+): Promise<{ playerName: string; isOperator: boolean }> {
   const rows = await db
-    .select({ username: users.username })
+    .select({ username: users.username, is_operator: users.is_operator })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  return rows[0]?.username ?? 'tundmatu mängija';
+  return {
+    playerName: rows[0]?.username ?? 'tundmatu mängija',
+    isOperator: rows[0]?.is_operator ?? false,
+  };
 }
 
 async function loadGroupMatches(
@@ -167,36 +186,66 @@ async function loadGroupMatches(
   return out;
 }
 
+/**
+ * UX spec §15.4 — shared prediction shell. Group-stage matches collapse into
+ * a per-group accordion (A–L) inside the prediction `Card`; each row preserves
+ * the 1/X/2 picker, the `2×` double-points badge, and the result-tail after
+ * kickoff. Behaviour and validation are untouched — see story S05 §Out.
+ */
 export default async function GroupStagePage() {
+  const session = await auth();
+  if (!session?.user?.group_id) redirect('/login');
+
   const userId = await requireCurrentUserId();
   const tournamentId = await getCurrentTournamentId();
-  const [matches, gate, playerName] = await Promise.all([
+  const tournamentChip = resolveTournamentCode();
+
+  const [matches, gate, { playerName, isOperator }] = await Promise.all([
     loadGroupMatches(tournamentId, userId),
     isStageOpen(GROUP_STAGE_STAGE_CODE, tournamentId),
-    loadActiveUsername(userId),
+    loadPlayerContext(userId),
   ]);
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      <header>
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
-          ← Tagasi
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Grupimängud</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Iga grupimängu kohta vali viiest võimalusest: kodumeeskonna võit napilt
-          (1-2 väravaga) või selgelt (3+), viik, või sama külalismeeskonna kohta.
-          Täpne valik annab 5 punkti, õige võitja vale skoorivahega 3 punkti.
-          Topeltpunktiga mängudel korrutatakse tulemus kahega.
-        </p>
-      </header>
+    <>
+      <TopBar
+        groupName={session.user.username}
+        playerName={playerName}
+        isOperator={isOperator}
+        tournamentChip={tournamentChip}
+        logoutAction={logoutAction}
+      />
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+        <nav aria-label="Asukoht" className="text-sm text-text-muted">
+          <Link href="/" className="hover:underline">
+            Avaleht
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <span>Grupimängud</span>
+        </nav>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <WindowStatePill gate={gate} />
-        <EnnustabBanner playerName={playerName} />
-      </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <WindowStatePill gate={gate} />
+          <EnnustabBanner playerName={playerName} />
+        </div>
 
-      <GroupStageForm matches={matches} disabled={!gate.open} />
-    </main>
+        <header>
+          <h1 className="text-3xl font-semibold text-text-primary">Grupimängud</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            Iga grupimängu kohta vali viiest võimalusest: kodumeeskonna võit
+            napilt (1-2 väravaga) või selgelt (3+), viik, või sama
+            külalismeeskonna kohta. Täpne valik annab 5 punkti, õige võitja
+            vale skoorivahega 3 punkti. Topeltpunktiga mängudel korrutatakse
+            tulemus kahega.
+          </p>
+        </header>
+
+        <Card>
+          <CardContent className="p-5 sm:p-6">
+            <GroupStageForm matches={matches} disabled={!gate.open} gateClosed={!gate.open} />
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }

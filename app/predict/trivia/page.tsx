@@ -1,15 +1,45 @@
 import { and, asc, eq } from 'drizzle-orm';
 import Link from 'next/link';
-import { requireCurrentUserId } from '@/lib/current-user';
+import { redirect } from 'next/navigation';
+
+import { EnnustabBanner } from '@/components/ennustab-banner';
+import { TopBar } from '@/components/top-bar';
+import { Card, CardContent } from '@/components/ui/card';
+import { WindowStatePill } from '@/components/window-state-pill';
+import { auth, signOut } from '@/lib/auth';
+import {
+  clearCurrentUserCookie,
+  requireCurrentUserId,
+} from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
-import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { questions, teams, user_questions } from '@/db/schema';
+import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
+import { questions, teams, user_questions, users } from '@/db/schema';
 import { TriviaForm, type TeamOption, type TriviaQuestionRow } from './trivia-form';
 import { TRIVIA_STAGE_CODE } from './constants';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Trivia — Jalkaennustus' };
+
+async function logoutAction() {
+  'use server';
+  await clearCurrentUserCookie();
+  await signOut({ redirectTo: '/login' });
+}
+
+async function loadPlayerContext(
+  userId: string,
+): Promise<{ playerName: string; isOperator: boolean }> {
+  const rows = await db
+    .select({ username: users.username, is_operator: users.is_operator })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return {
+    playerName: rows[0]?.username ?? 'tundmatu mängija',
+    isOperator: rows[0]?.is_operator ?? false,
+  };
+}
 
 async function loadQuestionsWithAnswers(
   userId: string,
@@ -52,53 +82,73 @@ async function loadTeams(tournamentId: string): Promise<TeamOption[]> {
     .orderBy(asc(teams.name_et));
 }
 
+/**
+ * UX spec §15.4 — shared prediction shell: dark sticky `AppHeader`,
+ * breadcrumb + h1, `WindowStatePill` + `EnnustabBanner`, prediction `Card`,
+ * and a right-aligned submit footer. Trivia keeps the existing five
+ * `QuestionBlock`s; Q5's conditional-on-Q4 trick is described inline via
+ * `aria-describedby` per §18.
+ */
 export default async function TriviaPage() {
+  const session = await auth();
+  if (!session?.user?.group_id) redirect('/login');
+
   const userId = await requireCurrentUserId();
   const tournamentId = await getCurrentTournamentId();
-  const [items, gate, teamOptions] = await Promise.all([
+  const tournamentChip = resolveTournamentCode();
+
+  const [items, gate, teamOptions, { playerName, isOperator }] = await Promise.all([
     loadQuestionsWithAnswers(userId, tournamentId),
     isStageOpen(TRIVIA_STAGE_CODE, tournamentId),
     loadTeams(tournamentId),
+    loadPlayerContext(userId),
   ]);
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <header>
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
-          ← Tagasi
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Trivia ennustus</h1>
-      </header>
+    <>
+      <TopBar
+        groupName={session.user.username}
+        playerName={playerName}
+        isOperator={isOperator}
+        tournamentChip={tournamentChip}
+        logoutAction={logoutAction}
+      />
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+        <nav aria-label="Asukoht" className="text-sm text-text-muted">
+          <Link href="/" className="hover:underline">
+            Avaleht
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <span>Trivia ennustus</span>
+        </nav>
 
-      <section className="mt-4 rounded border bg-gray-50 p-4 text-sm text-gray-700">
-        <p className="font-medium">Kuidas trivia toimib?</p>
-        <p className="mt-2">
-          Vasta enne turniiri algust viiele küsimusele. Iga õige vastus annab{' '}
-          <strong>14 punkti</strong> (kokku max 70). <strong>Q5 skoorib ainult juhul,
-          kui Q4 on õige</strong> — kui Q4 läheb mööda, jääb ka Q5 punktidest ilma.
-        </p>
-      </section>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <WindowStatePill gate={gate} />
+          <EnnustabBanner playerName={playerName} />
+        </div>
 
-      <p
-        className={`mt-4 inline-block rounded-full px-3 py-1 text-xs font-medium ${
-          gate.open
-            ? 'bg-green-100 text-green-800'
-            : gate.reason === 'closed'
-            ? 'bg-gray-200 text-gray-700'
-            : 'bg-yellow-100 text-yellow-900'
-        }`}
-        role="status"
-      >
-        {gate.open
-          ? 'Aken on avatud'
-          : gate.reason === 'closed'
-          ? 'Aken on suletud'
-          : gate.reason === 'not_yet'
-          ? `Aken avaneb ${gate.opensAt?.toISOString() ?? ''}`
-          : 'Etappi ei leitud'}
-      </p>
+        <header>
+          <h1 className="text-3xl font-semibold text-text-primary">
+            Trivia ennustus
+          </h1>
+          <p className="mt-1 text-sm text-text-muted">
+            Vasta enne turniiri algust viiele küsimusele. Iga õige vastus annab{' '}
+            <strong>14 punkti</strong> (kokku max 70). Q5 skoorib ainult juhul,
+            kui Q4 on õige.
+          </p>
+        </header>
 
-      <TriviaForm questions={items} teams={teamOptions} disabled={!gate.open} />
-    </main>
+        <Card>
+          <CardContent className="p-5 sm:p-6">
+            <TriviaForm
+              questions={items}
+              teams={teamOptions}
+              disabled={!gate.open}
+              gateClosed={!gate.open}
+            />
+          </CardContent>
+        </Card>
+      </main>
+    </>
   );
 }
