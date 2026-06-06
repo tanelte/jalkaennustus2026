@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeftRight, LogOut } from 'lucide-react';
+import { ArrowLeftRight, KeyRound, LogOut } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,6 +90,19 @@ export function AppHeader({
               Sina: <strong className="text-text-on-dark">{playerName}</strong>
             </span>
           )}
+
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className={`${outlineOnDark} ${focusRing}`}
+          >
+            <Link href="/me">
+              <KeyRound aria-hidden="true" />
+              <span className="hidden sm:inline">Minu konto</span>
+              <span className="sr-only sm:hidden">Minu konto ja PIN</span>
+            </Link>
+          </Button>
 
           <Button
             asChild

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 import { SubmitButton } from '@/components/submit-button';
@@ -75,9 +76,15 @@ export function PinEntryModal({
     initialResetState,
   );
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Portal target is only available after hydration on the client.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -134,11 +141,11 @@ export function PinEntryModal({
     if (!open) setRecoveryOpen(false);
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const canRecover = !!maskedRecoveryEmail;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -188,16 +195,6 @@ export function PinEntryModal({
             </p>
           )}
 
-          {canRecover && !recoveryOpen && (
-            <button
-              type="button"
-              onClick={() => setRecoveryOpen(true)}
-              className="text-sm text-brand-green underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2"
-            >
-              Unustasid PIN-i?
-            </button>
-          )}
-
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
@@ -214,6 +211,18 @@ export function PinEntryModal({
             </SubmitButton>
           </div>
         </form>
+
+        {canRecover && !recoveryOpen && (
+          <div className="mt-4 flex justify-center border-t border-border-default pt-4">
+            <button
+              type="button"
+              onClick={() => setRecoveryOpen(true)}
+              className="text-sm font-medium text-brand-green underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2"
+            >
+              Unustasid PIN-i? Saada taastuslink meilile
+            </button>
+          </div>
+        )}
 
         {canRecover && recoveryOpen && (
           <div className="mt-5 border-t border-border-default pt-4">
@@ -265,6 +274,7 @@ export function PinEntryModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

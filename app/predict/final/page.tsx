@@ -14,6 +14,7 @@ import {
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { loadFinalPeerRows } from '@/lib/peer-predictions/load-final-payloads';
+import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -138,6 +139,8 @@ export default async function FinalPredictPage() {
     }),
   ]);
 
+  const editMode = await resolveEditMode({ userId, stageGate: gate });
+
   return (
     <>
       <TopBar
@@ -199,8 +202,7 @@ export default async function FinalPredictPage() {
             <FinalForm
               candidates={candidates}
               initialPicks={initialPicks}
-              disabled={!gate.open}
-              gateClosed={!gate.open}
+              mode={editMode}
               slotsOrder={FINAL_SLOTS}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}

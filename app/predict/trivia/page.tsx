@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -111,6 +112,8 @@ export default async function TriviaPage() {
       getMaskedRecoveryEmailForUser(userId),
     ]);
 
+  const editMode = await resolveEditMode({ userId, stageGate: gate });
+
   // E04-S02 — peer-predictions view on trivia. One batched query across every
   // question in view; per-question results are passed into the existing
   // client form so its in-progress state is never disturbed by the read-side
@@ -163,8 +166,7 @@ export default async function TriviaPage() {
             <TriviaForm
               questions={items}
               teams={teamOptions}
-              disabled={!gate.open}
-              gateClosed={!gate.open}
+              mode={editMode}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
               groupName={session.user.username}

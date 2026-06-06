@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -138,6 +139,8 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
       getMaskedRecoveryEmailForUser(userId),
     ]);
 
+  const editMode = await resolveEditMode({ userId, stageGate: gate });
+
   // Peer predictions per bracket pair (one entry per game on this round).
   // Constitution Rule 2: groupId comes from the session, never URL input.
   const peerRowsByGameId = await loadAllKnockoutPeerRowsForSlots(
@@ -189,8 +192,7 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
             <KnockoutForm
               round={round}
               matches={matches}
-              disabled={!gate.open}
-              gateClosed={!gate.open}
+              mode={editMode}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
               groupName={session.user.username}

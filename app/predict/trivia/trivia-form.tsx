@@ -1,10 +1,13 @@
 'use client';
 
-import { startTransition, useActionState, useEffect, useState } from 'react';
+import { KeyRound } from 'lucide-react';
+import { startTransition, useActionState, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import type { EditMode } from '@/lib/pin/edit-mode';
 import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
@@ -27,7 +30,8 @@ const ERROR_COPY: Record<string, string> = {
   stage_closed: 'Trivia aken on suletud.',
   stage_not_yet: 'Trivia aken ei ole veel avatud.',
   stage_not_found: 'Trivia etappi ei leitud — võta ühendust korraldajaga.',
-  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_required:
+    'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
@@ -66,8 +70,7 @@ function renderTriviaPick(payload: TriviaPeerAnswer) {
 export function TriviaForm({
   questions,
   teams,
-  disabled,
-  gateClosed = false,
+  mode,
   userId,
   maskedRecoveryEmail,
   groupName,
@@ -75,8 +78,7 @@ export function TriviaForm({
 }: {
   questions: readonly TriviaQuestionRow[];
   teams: readonly TeamOption[];
-  disabled: boolean;
-  gateClosed?: boolean;
+  mode: EditMode;
   userId: string;
   maskedRecoveryEmail?: string | null;
   /** Current group's display name, used in the peer-view popover header. */
@@ -94,9 +96,7 @@ export function TriviaForm({
   );
   const [pinModalOpen, setPinModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (state.error === 'pin_required') setPinModalOpen(true);
-  }, [state.error]);
+  const disabled = mode !== 'edit';
 
   return (
     <form
@@ -209,13 +209,23 @@ export function TriviaForm({
       )}
 
       <div className="flex justify-end pt-2">
-        {gateClosed ? (
+        {mode === 'closed' ? (
           <Badge
             variant="outline"
             className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
           >
             Suletud
           </Badge>
+        ) : mode === 'pending-unlock' ? (
+          <Button
+            type="button"
+            onClick={() => setPinModalOpen(true)}
+            aria-label="Sisesta PIN, et alustada muutmist"
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            <KeyRound aria-hidden="true" />
+            Muuda
+          </Button>
         ) : (
           <SubmitButton
             pendingOverride={pending}

@@ -131,8 +131,6 @@ export async function requestPinResetAction(
     '',
     'Link kehtib 30 minutit alates saatmisest ja seda saab kasutada vaid ühe korra.',
     '',
-    'Kui see e-kiri sinu sissetulevate hulka ei jõudnud, kontrolli ka rämpsposti — esimesel korral võib see sinna sattuda.',
-    '',
     'Kui sa seda ei soovinud, ignoreeri seda kirja.',
     '',
     '— Jalkaennustus',

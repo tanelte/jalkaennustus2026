@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -85,6 +86,8 @@ export default async function BestThirdsPage() {
       }),
     ]);
 
+  const editMode = await resolveEditMode({ userId, stageGate: gate });
+
   return (
     <>
       <TopBar
@@ -133,8 +136,7 @@ export default async function BestThirdsPage() {
           <CardContent className="p-5 sm:p-6">
             <BestThirdsForm
               initialPicks={picks}
-              disabled={!gate.open}
-              gateClosed={!gate.open}
+              mode={editMode}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
             />

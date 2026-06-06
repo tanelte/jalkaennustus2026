@@ -1,11 +1,13 @@
 'use client';
 
-import { Check } from 'lucide-react';
-import { useActionState, useEffect, useState } from 'react';
+import { Check, KeyRound } from 'lucide-react';
+import { useActionState, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import type { EditMode } from '@/lib/pin/edit-mode';
 import { submitBestThirds, type SubmitBestThirdsState } from './actions';
 import { GROUP_LETTERS, REQUIRED_PICKS } from './constants';
 
@@ -20,23 +22,22 @@ const ERROR_COPY: Record<string, string> = {
   stage_not_found: 'Best-thirds etappi ei leitud — võta ühendust korraldajaga.',
   no_user: 'Vali kõigepealt kasutaja.',
   no_session: 'Logi sisse uuesti.',
-  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_required:
+    'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
 export interface BestThirdsFormProps {
   initialPicks: readonly string[];
-  disabled?: boolean;
-  gateClosed?: boolean;
+  mode: EditMode;
   userId: string;
   maskedRecoveryEmail?: string | null;
 }
 
 export function BestThirdsForm({
   initialPicks,
-  disabled = false,
-  gateClosed = false,
+  mode,
   userId,
   maskedRecoveryEmail,
 }: BestThirdsFormProps) {
@@ -44,9 +45,7 @@ export function BestThirdsForm({
   const [selected, setSelected] = useState<Set<string>>(new Set(initialPicks));
   const [pinModalOpen, setPinModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (state.error === 'pin_required') setPinModalOpen(true);
-  }, [state.error]);
+  const disabled = mode !== 'edit';
 
   function toggle(letter: string) {
     if (disabled) return;
@@ -116,13 +115,23 @@ export function BestThirdsForm({
       )}
 
       <div className="flex justify-end pt-2">
-        {gateClosed ? (
+        {mode === 'closed' ? (
           <Badge
             variant="outline"
             className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
           >
             Suletud
           </Badge>
+        ) : mode === 'pending-unlock' ? (
+          <Button
+            type="button"
+            onClick={() => setPinModalOpen(true)}
+            aria-label="Sisesta PIN, et alustada muutmist"
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            <KeyRound aria-hidden="true" />
+            Muuda
+          </Button>
         ) : (
           <SubmitButton
             pendingOverride={pending}

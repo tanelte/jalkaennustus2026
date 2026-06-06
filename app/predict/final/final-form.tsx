@@ -1,11 +1,13 @@
 'use client';
 
-import { Medal } from 'lucide-react';
-import { startTransition, useActionState, useEffect, useState } from 'react';
+import { KeyRound, Medal } from 'lucide-react';
+import { startTransition, useActionState, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import type { EditMode } from '@/lib/pin/edit-mode';
 import { submitFinalPicks, type SubmitFinalPicksState } from './actions';
 import {
   FINAL_SLOT_LABELS_ET,
@@ -29,7 +31,8 @@ const ERROR_COPY: Record<string, string> = {
   stage_closed: 'Finaali ennustuse aken on suletud.',
   stage_not_yet: 'Finaali ennustuse aken ei ole veel avatud.',
   stage_not_found: 'Finaali etappi ei leitud — võta ühendust korraldajaga.',
-  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_required:
+    'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
@@ -45,8 +48,7 @@ export interface FinalFormProps {
   candidates: readonly CandidateTeamView[];
   initialPicks: Partial<Record<FinalSlot, string>>;
   slotsOrder: readonly FinalSlot[];
-  disabled: boolean;
-  gateClosed?: boolean;
+  mode: EditMode;
   userId: string;
   maskedRecoveryEmail?: string | null;
 }
@@ -55,8 +57,7 @@ export function FinalForm({
   candidates,
   initialPicks,
   slotsOrder,
-  disabled,
-  gateClosed = false,
+  mode,
   userId,
   maskedRecoveryEmail,
 }: FinalFormProps) {
@@ -64,9 +65,7 @@ export function FinalForm({
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
   const [pinModalOpen, setPinModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (state.error === 'pin_required') setPinModalOpen(true);
-  }, [state.error]);
+  const disabled = mode !== 'edit';
 
   function onPick(slot: FinalSlot, teamId: string) {
     setPicks((prev) => ({ ...prev, [slot]: teamId || undefined }));
@@ -147,13 +146,23 @@ export function FinalForm({
       )}
 
       <div className="flex justify-end pt-2">
-        {gateClosed ? (
+        {mode === 'closed' ? (
           <Badge
             variant="outline"
             className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
           >
             Suletud
           </Badge>
+        ) : mode === 'pending-unlock' ? (
+          <Button
+            type="button"
+            onClick={() => setPinModalOpen(true)}
+            aria-label="Sisesta PIN, et alustada muutmist"
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            <KeyRound aria-hidden="true" />
+            Muuda
+          </Button>
         ) : (
           <SubmitButton
             pendingOverride={pending}

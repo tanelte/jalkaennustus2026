@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { scoreMatchPrediction } from '@/lib/scoring/match-score';
 import type { ResultCode } from '@/lib/scoring/types';
@@ -212,6 +213,8 @@ export default async function GroupStagePage() {
       getMaskedRecoveryEmailForUser(userId),
     ]);
 
+  const editMode = await resolveEditMode({ userId, stageGate: gate });
+
   // E04-S01 — peer-predictions view. One batched query across every match in
   // view; per-match results are passed into the existing client form so its
   // in-progress state is never disturbed by the read-side decoration.
@@ -262,8 +265,7 @@ export default async function GroupStagePage() {
           <CardContent className="p-5 sm:p-6">
             <GroupStageForm
               matches={matches}
-              disabled={!gate.open}
-              gateClosed={!gate.open}
+              mode={editMode}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
               groupName={session.user.username}

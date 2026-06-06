@@ -40,6 +40,9 @@ export function AppHeaderMobileNav({ isOperator }: { isOperator: boolean }) {
         <DropdownMenuItem asChild>
           <Link href="/me/history">Ajalugu</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/me">Minu konto</Link>
+        </DropdownMenuItem>
         {isOperator && (
           <DropdownMenuItem asChild>
             <Link href="/admin">Admin</Link>
