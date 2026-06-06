@@ -52,38 +52,46 @@
     --focus-ring-color: var(--brand-green);
 
     /* -------------------------------------------------------------------------
-     * shadcn/ui base tokens (new-york style, neutral base color).
-     * Namespaced separately from our UX §13 tokens — they coexist without
-     * collisions because our names are kebab-cased semantic (`--bg-app`) and
-     * shadcn's are single-word HSL channel tuples (`--background`, `--ring`).
-     * Component code consumes UX tokens directly via the Tailwind theme; the
-     * shadcn block exists so primitives under `components/ui/` keep working
-     * with their stock styles until each primitive is themed in a later story.
+     * shadcn/ui base tokens, remapped to our UX §13 palette.
+     * Shadcn primitives consume these HSL triplets via Tailwind classes
+     * (`bg-primary`, `bg-background`, `border-border`, `ring-ring`, …).
+     * Pointing them at our brand palette makes a default <Button /> render
+     * brand-green, a <Card /> sit on the off-white app background, and the
+     * focus ring use brand-green without rewriting any primitive.
      * --------------------------------------------------------------------- */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --background: 120 6% 97%; /* --bg-app #f7f8f7 */
+    --foreground: 150 18% 7%; /* --text-primary #0e1411 */
+    --card: 0 0% 100%; /* --surface-card #ffffff */
+    --card-foreground: 150 18% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --popover-foreground: 150 18% 7%;
+    --primary: 142 76% 36%; /* --brand-green #16a34a */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 141 41% 93%; /* --brand-green-soft #e7f5ec */
+    --secondary-foreground: 142 71% 29%; /* --brand-green-hover #15803d */
+    --muted: 120 4% 91%; /* --border-default #e6e8e6 */
+    --muted-foreground: 150 4% 44%; /* --text-muted #6b7672 */
+    --accent: 141 41% 93%; /* hover tint = brand-green-soft */
+    --accent-foreground: 142 76% 36%;
+    --destructive: 0 65% 42%; /* --state-closed-text #b91c1c */
+    --destructive-foreground: 0 0% 100%;
+    --border: 120 4% 91%; /* --border-default */
+    --input: 120 4% 91%;
+    --ring: 142 76% 36%; /* brand-green focus ring */
     --radius: 0.5rem;
   }
 }
 
 @layer base {
+  /* Apply Inter explicitly. Tailwind's `font-sans` utility on <body>
+   * does not pick up `theme.extend.fontFamily.sans` reliably in this
+   * Next 15 + Tailwind 3.4 build, so we set the family here directly.
+   * --font-inter is provided by `next/font/google` in app/layout.tsx. */
+  html,
+  body {
+    font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
   body {
     background-color: var(--bg-app);
     color: var(--text-body);
