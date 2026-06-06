@@ -1,14 +1,19 @@
 /**
- * Hardcoded seed data for FIFA World Cup 2026.
+ * Post-draw seed data for FIFA World Cup 2026.
  *
- * Source of truth: this file. The seed script in scripts/seed.ts consumes
- * these structures and writes them to the database idempotently.
+ * Source of truth: db/seed-data/wc2026-fixtures.json — a snapshot of the
+ * football-data.org /v4/competitions/WC/matches payload (regenerate with
+ * `pnpm tsx scripts/snapshot-wc2026-feed.ts` when the schedule changes).
  *
- * The team-to-group assignment is a plausible placeholder until the operator
- * runs the post-draw correction. The 48-team count, 12-group structure, 104
- * games (72 group + 16 R32 + 8 R16 + 4 QF + 2 SF + 1 3rd-place + 1 Final), and
- * stage timing are correct.
+ * Teams, real group assignments, kick-off times, and group-stage / knockout
+ * round_labels are derived from the snapshot. Estonian names live in the
+ * teamNameEt dictionary below.
+ *
+ * Note on double_points: the rewrite intentionally seeds every match with
+ * `doublePoints: false`. The operator flags the curated marquee set in DB
+ * before kickoff via `scripts/update-double-points.ts`.
  */
+import rawFeed from './wc2026-fixtures.json';
 
 export type TournamentSeed = {
   code: string;
@@ -46,227 +51,248 @@ export const wc2026Tournament: TournamentSeed = {
   endsAt: '2026-07-19T23:59:59Z',
 };
 
-const groupRoster: Record<string, [string, string, string, string]> = {
-  A: ['USA', 'NOR', 'JPN', 'NZL'],
-  B: ['CAN', 'ENG', 'MAR', 'JAM'],
-  C: ['MEX', 'ESP', 'KOR', 'CRC'],
-  D: ['ARG', 'FRA', 'AUS', 'GHA'],
-  E: ['BRA', 'GER', 'EGY', 'PAN'],
-  F: ['URU', 'ITA', 'IRN', 'WAL'],
-  G: ['COL', 'POR', 'KSA', 'COD'],
-  H: ['ECU', 'NED', 'QAT', 'ALG'],
-  I: ['PAR', 'BEL', 'IRQ', 'CMR'],
-  J: ['CRO', 'DEN', 'UZB', 'TUN'],
-  K: ['SUI', 'POL', 'SRB', 'CIV'],
-  L: ['AUT', 'TUR', 'SEN', 'NGA'],
-};
-
+// Estonian display names for every team appearing in the feed snapshot.
+// Codes are football-data.org TLAs (mostly ISO 3166-1 alpha-3, occasionally
+// FIFA codes — e.g. RSA for South Africa, KSA for Saudi Arabia).
 const teamNameEt: Record<string, string> = {
-  USA: 'Ameerika Ühendriigid',
+  // Africa
+  ALG: 'Alžeeria',
+  BIH: 'Bosnia ja Hertsegoviina', // (Europe; placed near top alphabetically below)
+  CIV: 'Elevandiluurannik',
+  CPV: 'Roheneemesaared',
+  EGY: 'Egiptus',
+  GHA: 'Ghana',
+  MAR: 'Maroko',
+  RSA: 'Lõuna-Aafrika Vabariik',
+  SEN: 'Senegal',
+  TUN: 'Tuneesia',
+  COD: 'Kongo DV',
+  // Asia / Oceania
+  AUS: 'Austraalia',
+  IRN: 'Iraan',
+  IRQ: 'Iraak',
+  JOR: 'Jordaania',
+  JPN: 'Jaapan',
+  KOR: 'Lõuna-Korea',
+  KSA: 'Saudi Araabia',
+  NZL: 'Uus-Meremaa',
+  QAT: 'Katar',
+  UZB: 'Usbekistan',
+  // North / Central America & Caribbean
   CAN: 'Kanada',
+  CUW: 'Curaçao',
+  HAI: 'Haiti',
   MEX: 'Mehhiko',
+  PAN: 'Panama',
+  USA: 'Ameerika Ühendriigid',
+  // South America
   ARG: 'Argentina',
   BRA: 'Brasiilia',
-  URU: 'Uruguay',
   COL: 'Colombia',
   ECU: 'Ecuador',
   PAR: 'Paraguay',
-  CRC: 'Costa Rica',
-  JAM: 'Jamaica',
-  PAN: 'Panama',
+  URY: 'Uruguay',
+  // Europe
+  AUT: 'Austria',
+  BEL: 'Belgia',
+  CRO: 'Horvaatia',
+  CZE: 'Tšehhi',
+  ENG: 'Inglismaa',
   ESP: 'Hispaania',
   FRA: 'Prantsusmaa',
   GER: 'Saksamaa',
-  ENG: 'Inglismaa',
-  ITA: 'Itaalia',
-  POR: 'Portugal',
   NED: 'Holland',
-  BEL: 'Belgia',
-  CRO: 'Horvaatia',
-  DEN: 'Taani',
-  SUI: 'Šveits',
-  POL: 'Poola',
-  AUT: 'Austria',
   NOR: 'Norra',
-  SRB: 'Serbia',
+  POR: 'Portugal',
+  SCO: 'Šotimaa',
+  SUI: 'Šveits',
+  SWE: 'Rootsi',
   TUR: 'Türgi',
-  JPN: 'Jaapan',
-  KOR: 'Lõuna-Korea',
-  IRN: 'Iraan',
-  AUS: 'Austraalia',
-  KSA: 'Saudi Araabia',
-  QAT: 'Katar',
-  IRQ: 'Iraak',
-  UZB: 'Usbekistan',
-  MAR: 'Maroko',
-  SEN: 'Senegal',
-  EGY: 'Egiptus',
-  NGA: 'Nigeeria',
-  ALG: 'Alžeeria',
-  CMR: 'Kamerun',
-  GHA: 'Ghana',
-  TUN: 'Tuneesia',
-  CIV: 'Elevandiluurannik',
-  NZL: 'Uus-Meremaa',
-  WAL: 'Wales',
-  COD: 'Kongo DV',
 };
 
+// --- Snapshot decoding -----------------------------------------------------
+
+interface FeedTeam {
+  tla: string | null;
+}
+interface FeedScore {
+  duration?: string | null;
+  fullTime?: { home?: number | null; away?: number | null } | null;
+}
+interface FeedMatch {
+  id: number | string;
+  utcDate: string;
+  stage: string;
+  status: string;
+  matchday: number | null;
+  group: string | null;
+  homeTeam: FeedTeam | null;
+  awayTeam: FeedTeam | null;
+  score: FeedScore | null;
+}
+interface FeedPayload {
+  matches: FeedMatch[];
+}
+
+const feed = rawFeed as unknown as FeedPayload;
+const matches = feed.matches ?? [];
+
+function groupLetterFrom(raw: string | null): string | null {
+  // football-data.org emits 'GROUP_A' .. 'GROUP_L' for group-stage matches.
+  if (!raw) return null;
+  const m = /^GROUP_([A-L])$/.exec(raw);
+  return m ? m[1] : null;
+}
+
+// --- Teams -----------------------------------------------------------------
+
 export const wc2026Teams: TeamSeed[] = (() => {
-  const out: TeamSeed[] = [];
-  for (const [letter, codes] of Object.entries(groupRoster)) {
-    for (const code of codes) {
+  const byCode = new Map<string, TeamSeed>();
+  for (const m of matches) {
+    const letter = groupLetterFrom(m.group);
+    if (!letter) continue; // skip knockout rows; teams are determined by group stage
+    for (const t of [m.homeTeam, m.awayTeam]) {
+      const code = t?.tla;
+      if (!code) continue;
+      if (byCode.has(code)) continue;
       const nameEt = teamNameEt[code];
       if (!nameEt) throw new Error(`Missing Estonian name for team code ${code}`);
-      out.push({ code, nameEt, groupLetter: letter });
+      byCode.set(code, { code, nameEt, groupLetter: letter });
     }
   }
-  return out;
+  // Sort by group letter, then alphabetically by code, for stable output.
+  return [...byCode.values()].sort((a, b) => {
+    if (a.groupLetter !== b.groupLetter) return a.groupLetter.localeCompare(b.groupLetter);
+    return a.code.localeCompare(b.code);
+  });
 })();
 
-function setUtc(date: Date, hours: number, minutes: number): Date {
-  const d = new Date(date);
-  d.setUTCHours(hours, minutes, 0, 0);
-  return d;
-}
+// --- Games -----------------------------------------------------------------
 
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
-}
+function buildGroupGames(): GameSeed[] {
+  const groupMatches = matches.filter((m) => m.stage === 'GROUP_STAGE');
+  // Sort by group letter, then matchday, then kickoff_at so pair numbering is stable.
+  groupMatches.sort((a, b) => {
+    const la = groupLetterFrom(a.group) ?? '';
+    const lb = groupLetterFrom(b.group) ?? '';
+    if (la !== lb) return la.localeCompare(lb);
+    const ma = a.matchday ?? 0;
+    const mb = b.matchday ?? 0;
+    if (ma !== mb) return ma - mb;
+    return a.utcDate.localeCompare(b.utcDate);
+  });
 
-const SLOT_HOURS_GROUP = [12, 15, 18, 21];
-
-function buildGroupMatches(): GameSeed[] {
-  type Pair = { letter: string; md: number; pair: 1 | 2; home: string; away: string };
-  const pairs: Pair[] = [];
-  for (const [letter, t] of Object.entries(groupRoster)) {
-    pairs.push({ letter, md: 1, pair: 1, home: t[0], away: t[1] });
-    pairs.push({ letter, md: 1, pair: 2, home: t[2], away: t[3] });
-    pairs.push({ letter, md: 2, pair: 1, home: t[0], away: t[2] });
-    pairs.push({ letter, md: 2, pair: 2, home: t[1], away: t[3] });
-    pairs.push({ letter, md: 3, pair: 1, home: t[0], away: t[3] });
-    pairs.push({ letter, md: 3, pair: 2, home: t[1], away: t[2] });
-  }
-
-  // Curated double-points selection: one marquee fixture (R1/R2) per group
-  // plus the best-matched matchday-3 fixture. Operator finalises the live
-  // set before kickoff; scripts/update-double-points.ts keeps DB in sync.
-  const DOUBLE_POINTS_ROUND_LABELS = new Set([
-    // Marquee (R1/R2)
-    'A1-1', 'B1-1', 'C1-1', 'D1-1', 'D2-2', 'E1-1', 'F1-1', 'G1-1',
-    'H1-1', 'I1-1', 'I2-2', 'J1-1', 'J2-2', 'K1-1', 'L1-2',
-    // Decisive R3 (best-matched final-round fixture per group)
-    'A3-2', 'B3-2', 'C3-2', 'E3-2', 'F3-2', 'G3-2', 'H3-1', 'K3-2', 'L3-2',
-  ]);
-
-  const base = new Date('2026-06-11T00:00:00Z');
-  return pairs.map((p, i) => {
-    const day = Math.floor(i / SLOT_HOURS_GROUP.length);
-    const slot = i % SLOT_HOURS_GROUP.length;
-    const kickoff = setUtc(addDays(base, day), SLOT_HOURS_GROUP[slot], 0);
-    const roundLabel = `${p.letter}${p.md}-${p.pair}`;
+  const pairCounter = new Map<string, number>();
+  return groupMatches.map((m) => {
+    const letter = groupLetterFrom(m.group);
+    if (!letter || !m.matchday) {
+      throw new Error(`Group-stage match ${m.id} is missing group/matchday`);
+    }
+    const key = `${letter}${m.matchday}`;
+    const next = (pairCounter.get(key) ?? 0) + 1;
+    pairCounter.set(key, next);
     return {
-      stageCode: 'group_matches' as const,
-      roundLabel,
-      kickoffAt: kickoff.toISOString(),
-      homeCode: p.home,
-      awayCode: p.away,
-      doublePoints: DOUBLE_POINTS_ROUND_LABELS.has(roundLabel),
+      stageCode: 'group_matches',
+      roundLabel: `${letter}${m.matchday}-${next}`,
+      kickoffAt: m.utcDate,
+      homeCode: m.homeTeam?.tla ?? null,
+      awayCode: m.awayTeam?.tla ?? null,
+      doublePoints: false,
     };
   });
 }
 
 function buildKnockoutGames(): GameSeed[] {
-  const games: GameSeed[] = [];
+  const out: GameSeed[] = [];
 
-  // R32: 16 games across June 29 - July 2 (4 days × 4 slots).
-  const r32Base = new Date('2026-06-29T00:00:00Z');
-  for (let i = 0; i < 16; i++) {
-    const day = Math.floor(i / 4);
-    const slot = i % 4;
-    const kickoff = setUtc(addDays(r32Base, day), SLOT_HOURS_GROUP[slot], 0);
-    games.push({
-      stageCode: 'r32',
-      roundLabel: `R32-${String(i + 1).padStart(2, '0')}`,
-      kickoffAt: kickoff.toISOString(),
-      homeCode: null,
-      awayCode: null,
-      doublePoints: false,
+  function pushOrdered(stageFeed: string, stageCode: GameSeed['stageCode'], prefix: string, pad: number) {
+    const rows = matches.filter((m) => m.stage === stageFeed);
+    rows.sort((a, b) => a.utcDate.localeCompare(b.utcDate));
+    rows.forEach((m, i) => {
+      out.push({
+        stageCode,
+        roundLabel: `${prefix}-${String(i + 1).padStart(pad, '0')}`,
+        kickoffAt: m.utcDate,
+        homeCode: m.homeTeam?.tla ?? null,
+        awayCode: m.awayTeam?.tla ?? null,
+        doublePoints: false,
+      });
     });
   }
 
-  // R16: 8 games across July 4 - July 7 (4 days × 2 slots at 15:00 and 21:00).
-  const r16Base = new Date('2026-07-04T00:00:00Z');
-  const r16Slots = [15, 21];
-  for (let i = 0; i < 8; i++) {
-    const day = Math.floor(i / 2);
-    const slot = i % 2;
-    const kickoff = setUtc(addDays(r16Base, day), r16Slots[slot], 0);
-    games.push({
-      stageCode: 'r16',
-      roundLabel: `R16-${String(i + 1).padStart(2, '0')}`,
-      kickoffAt: kickoff.toISOString(),
-      homeCode: null,
-      awayCode: null,
-      doublePoints: false,
-    });
-  }
+  pushOrdered('LAST_32', 'r32', 'R32', 2);
+  pushOrdered('LAST_16', 'r16', 'R16', 2);
+  pushOrdered('QUARTER_FINALS', 'qf', 'QF', 2);
+  pushOrdered('SEMI_FINALS', 'sf', 'SF', 2);
 
-  // QF: 4 games on July 9 and July 11 (2 per day).
-  const qfKickoffs = [
-    '2026-07-09T18:00:00Z',
-    '2026-07-09T21:00:00Z',
-    '2026-07-11T18:00:00Z',
-    '2026-07-11T21:00:00Z',
-  ];
-  qfKickoffs.forEach((k, i) => {
-    games.push({
-      stageCode: 'qf',
-      roundLabel: `QF-0${i + 1}`,
-      kickoffAt: k,
-      homeCode: null,
-      awayCode: null,
-      doublePoints: false,
-    });
-  });
-
-  // SF: 2 games on July 14 and July 15.
-  const sfKickoffs = ['2026-07-14T20:00:00Z', '2026-07-15T20:00:00Z'];
-  sfKickoffs.forEach((k, i) => {
-    games.push({
-      stageCode: 'sf',
-      roundLabel: `SF-0${i + 1}`,
-      kickoffAt: k,
-      homeCode: null,
-      awayCode: null,
-      doublePoints: false,
-    });
-  });
-
-  // 3rd-place playoff and Final: both tagged stage 'final'.
-  games.push({
+  const thirdPlace = matches.find((m) => m.stage === 'THIRD_PLACE');
+  if (!thirdPlace) throw new Error('Snapshot missing THIRD_PLACE match');
+  out.push({
     stageCode: 'final',
     roundLabel: '3RD',
-    kickoffAt: '2026-07-18T20:00:00Z',
-    homeCode: null,
-    awayCode: null,
+    kickoffAt: thirdPlace.utcDate,
+    homeCode: thirdPlace.homeTeam?.tla ?? null,
+    awayCode: thirdPlace.awayTeam?.tla ?? null,
     doublePoints: false,
   });
-  games.push({
+
+  const finalMatch = matches.find((m) => m.stage === 'FINAL');
+  if (!finalMatch) throw new Error('Snapshot missing FINAL match');
+  out.push({
     stageCode: 'final',
     roundLabel: 'FINAL',
-    kickoffAt: '2026-07-19T20:00:00Z',
-    homeCode: null,
-    awayCode: null,
+    kickoffAt: finalMatch.utcDate,
+    homeCode: finalMatch.homeTeam?.tla ?? null,
+    awayCode: finalMatch.awayTeam?.tla ?? null,
     doublePoints: false,
   });
 
-  return games;
+  return out;
 }
 
-export const wc2026Games: GameSeed[] = [...buildGroupMatches(), ...buildKnockoutGames()];
+export const wc2026Games: GameSeed[] = [...buildGroupGames(), ...buildKnockoutGames()];
+
+// Match-id discovery: map from feed match.id to round_label. Consumed by the
+// reseed-from-feed script so games rows are populated with `match_id` already
+// linked (sidesteps the S18 first-poll discovery branch).
+export const wc2026MatchIdByRoundLabel: Record<string, string> = (() => {
+  const labelByKey = new Map<string, string>();
+  for (const g of wc2026Games) {
+    labelByKey.set(`${g.stageCode}|${g.kickoffAt}|${g.homeCode ?? ''}|${g.awayCode ?? ''}`, g.roundLabel);
+  }
+  const out: Record<string, string> = {};
+  for (const m of matches) {
+    let stageCode: GameSeed['stageCode'] | null = null;
+    switch (m.stage) {
+      case 'GROUP_STAGE':
+        stageCode = 'group_matches';
+        break;
+      case 'LAST_32':
+        stageCode = 'r32';
+        break;
+      case 'LAST_16':
+        stageCode = 'r16';
+        break;
+      case 'QUARTER_FINALS':
+        stageCode = 'qf';
+        break;
+      case 'SEMI_FINALS':
+        stageCode = 'sf';
+        break;
+      case 'THIRD_PLACE':
+      case 'FINAL':
+        stageCode = 'final';
+        break;
+    }
+    if (!stageCode) continue;
+    const key = `${stageCode}|${m.utcDate}|${m.homeTeam?.tla ?? ''}|${m.awayTeam?.tla ?? ''}`;
+    const label = labelByKey.get(key);
+    if (label) out[label] = String(m.id);
+  }
+  return out;
+})();
+
+// --- Trivia questions (unchanged from pre-draw seed) ----------------------
 
 export const wc2026Questions: QuestionSeed[] = [
   {
