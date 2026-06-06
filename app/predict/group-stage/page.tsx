@@ -16,6 +16,9 @@ import { scoreMatchPrediction } from '@/lib/scoring/match-score';
 import type { ResultCode } from '@/lib/scoring/types';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
+import { loadAllGroupStagePeerRowsForMatches } from '@/lib/peer-predictions/load-group-stage-payloads';
+import type { GroupStagePeerPick } from '@/lib/peer-predictions/load-group-stage-payloads';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 import { games, result_codes, teams, user_games, users } from '@/db/schema';
 import {
   GROUP_LETTERS,
@@ -206,6 +209,18 @@ export default async function GroupStagePage() {
     loadPlayerContext(userId),
   ]);
 
+  // E04-S01 — peer-predictions view. One batched query across every match in
+  // view; per-match results are passed into the existing client form so its
+  // in-progress state is never disturbed by the read-side decoration.
+  const peerRowsByGameId = await loadAllGroupStagePeerRowsForMatches(
+    matches.map((m) => m.id),
+    { groupId: session.user.group_id, viewerUserId: userId },
+  );
+  const peerRowsRecord: Record<string, PeerRow<GroupStagePeerPick>[]> = {};
+  for (const [gameId, rows] of peerRowsByGameId.entries()) {
+    peerRowsRecord[gameId] = rows;
+  }
+
   return (
     <>
       <TopBar
@@ -247,6 +262,8 @@ export default async function GroupStagePage() {
               disabled={!gate.open}
               gateClosed={!gate.open}
               userId={userId}
+              groupName={session.user.username}
+              peerRowsByGameId={peerRowsRecord}
             />
           </CardContent>
         </Card>
