@@ -1,9 +1,10 @@
 'use client';
 
 import { ChevronDown } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
 import {
   submitGroupStagePredictions,
@@ -55,6 +56,9 @@ const ERROR_COPY: Record<string, string> = {
   stage_closed: 'Grupimängude aken on suletud.',
   stage_not_yet: 'Grupimängude aken pole veel avatud.',
   stage_not_found: 'Grupimängude etappi ei leitud — võta ühendust korraldajaga.',
+  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_rate_limited:
+    'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
 function formatKickoff(iso: string): string {
@@ -194,12 +198,14 @@ export interface GroupStageFormProps {
   matches: readonly GroupStageMatchView[];
   disabled: boolean;
   gateClosed?: boolean;
+  userId: string;
 }
 
 export function GroupStageForm({
   matches,
   disabled,
   gateClosed = false,
+  userId,
 }: GroupStageFormProps) {
   const [state, formAction, pending] = useActionState(
     submitGroupStagePredictions,
@@ -212,6 +218,11 @@ export function GroupStageForm({
     }
     return seed;
   });
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (state.error === 'pin_required') setPinModalOpen(true);
+  }, [state.error]);
 
   function onPick(gameId: string, code: GroupStagePredictionCode) {
     setPicks((prev) => ({ ...prev, [gameId]: code }));
@@ -302,6 +313,11 @@ export function GroupStageForm({
           </SubmitButton>
         )}
       </div>
+      <PinEntryModal
+        open={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        userId={userId}
+      />
     </form>
   );
 }

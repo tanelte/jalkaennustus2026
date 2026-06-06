@@ -1,8 +1,9 @@
 'use client';
 
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { submitTrivia, type SubmitTriviaState } from './actions';
 import { ANSWER_MAX_LEN } from './constants';
@@ -22,6 +23,9 @@ const ERROR_COPY: Record<string, string> = {
   stage_closed: 'Trivia aken on suletud.',
   stage_not_yet: 'Trivia aken ei ole veel avatud.',
   stage_not_found: 'Trivia etappi ei leitud — võta ühendust korraldajaga.',
+  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_rate_limited:
+    'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
 export interface TriviaQuestionRow {
@@ -45,16 +49,23 @@ export function TriviaForm({
   teams,
   disabled,
   gateClosed = false,
+  userId,
 }: {
   questions: readonly TriviaQuestionRow[];
   teams: readonly TeamOption[];
   disabled: boolean;
   gateClosed?: boolean;
+  userId: string;
 }) {
   const [state, formAction, pending] = useActionState(submitTrivia, initialState);
   const [answers, setAnswers] = useState<Record<number, string>>(() =>
     Object.fromEntries(questions.map((q) => [q.position, q.currentAnswer])),
   );
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (state.error === 'pin_required') setPinModalOpen(true);
+  }, [state.error]);
 
   return (
     <form
@@ -160,6 +171,11 @@ export function TriviaForm({
           </SubmitButton>
         )}
       </div>
+      <PinEntryModal
+        open={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        userId={userId}
+      />
     </form>
   );
 }

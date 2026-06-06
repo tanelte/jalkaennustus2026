@@ -145,6 +145,7 @@ export default async function TriviaPage() {
               teams={teamOptions}
               disabled={!gate.open}
               gateClosed={!gate.open}
+              userId={userId}
             />
           </CardContent>
         </Card>

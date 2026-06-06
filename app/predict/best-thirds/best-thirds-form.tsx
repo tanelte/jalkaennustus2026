@@ -1,9 +1,10 @@
 'use client';
 
 import { Check } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { submitBestThirds, type SubmitBestThirdsState } from './actions';
 import { GROUP_LETTERS, REQUIRED_PICKS } from './constants';
@@ -19,21 +20,31 @@ const ERROR_COPY: Record<string, string> = {
   stage_not_found: 'Best-thirds etappi ei leitud — võta ühendust korraldajaga.',
   no_user: 'Vali kõigepealt kasutaja.',
   no_session: 'Logi sisse uuesti.',
+  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_rate_limited:
+    'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
 export interface BestThirdsFormProps {
   initialPicks: readonly string[];
   disabled?: boolean;
   gateClosed?: boolean;
+  userId: string;
 }
 
 export function BestThirdsForm({
   initialPicks,
   disabled = false,
   gateClosed = false,
+  userId,
 }: BestThirdsFormProps) {
   const [state, formAction, pending] = useActionState(submitBestThirds, initialState);
   const [selected, setSelected] = useState<Set<string>>(new Set(initialPicks));
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (state.error === 'pin_required') setPinModalOpen(true);
+  }, [state.error]);
 
   function toggle(letter: string) {
     if (disabled) return;
@@ -120,6 +131,11 @@ export function BestThirdsForm({
           </SubmitButton>
         )}
       </div>
+      <PinEntryModal
+        open={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        userId={userId}
+      />
     </form>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { db } from '@/lib/db';
 import { resolveTournamentCode } from '@/lib/tournaments/current';
 import { users } from '@/db/schema';
+import { lockNowAction } from './pin/lock-action';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +117,14 @@ export default async function MePage() {
                 >
                   Lülita PIN välja
                 </Link>
+                <form action={lockNowAction}>
+                  <button
+                    type="submit"
+                    className="inline-block rounded border px-4 py-2 text-sm font-medium"
+                  >
+                    Lülita lukku nüüd
+                  </button>
+                </form>
               </div>
             </CardContent>
           </Card>

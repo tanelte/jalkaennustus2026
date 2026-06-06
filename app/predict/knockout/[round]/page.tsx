@@ -173,6 +173,7 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
               matches={matches}
               disabled={!gate.open}
               gateClosed={!gate.open}
+              userId={userId}
             />
           </CardContent>
         </Card>

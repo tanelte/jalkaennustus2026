@@ -1,9 +1,10 @@
 'use client';
 
 import { Medal } from 'lucide-react';
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { submitFinalPicks, type SubmitFinalPicksState } from './actions';
 import {
@@ -28,6 +29,9 @@ const ERROR_COPY: Record<string, string> = {
   stage_closed: 'Finaali ennustuse aken on suletud.',
   stage_not_yet: 'Finaali ennustuse aken ei ole veel avatud.',
   stage_not_found: 'Finaali etappi ei leitud — võta ühendust korraldajaga.',
+  pin_required: 'Sisesta oma PIN, et muudatusi salvestada.',
+  pin_rate_limited:
+    'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
 const MEDAL_TONE: Record<FinalSlot, string> = {
@@ -43,6 +47,7 @@ export interface FinalFormProps {
   slotsOrder: readonly FinalSlot[];
   disabled: boolean;
   gateClosed?: boolean;
+  userId: string;
 }
 
 export function FinalForm({
@@ -51,9 +56,15 @@ export function FinalForm({
   slotsOrder,
   disabled,
   gateClosed = false,
+  userId,
 }: FinalFormProps) {
   const [state, formAction, pending] = useActionState(submitFinalPicks, initialState);
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (state.error === 'pin_required') setPinModalOpen(true);
+  }, [state.error]);
 
   function onPick(slot: FinalSlot, teamId: string) {
     setPicks((prev) => ({ ...prev, [slot]: teamId || undefined }));
@@ -151,6 +162,11 @@ export function FinalForm({
           </SubmitButton>
         )}
       </div>
+      <PinEntryModal
+        open={pinModalOpen}
+        onClose={() => setPinModalOpen(false)}
+        userId={userId}
+      />
     </form>
   );
 }

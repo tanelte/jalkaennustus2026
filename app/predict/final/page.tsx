@@ -172,6 +172,7 @@ export default async function FinalPredictPage() {
               disabled={!gate.open}
               gateClosed={!gate.open}
               slotsOrder={FINAL_SLOTS}
+              userId={userId}
             />
           </CardContent>
         </Card>

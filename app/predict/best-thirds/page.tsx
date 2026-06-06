@@ -115,6 +115,7 @@ export default async function BestThirdsPage() {
               initialPicks={picks}
               disabled={!gate.open}
               gateClosed={!gate.open}
+              userId={userId}
             />
           </CardContent>
         </Card>

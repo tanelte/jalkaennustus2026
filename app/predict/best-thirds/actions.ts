@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { log } from '@/lib/log';
+import { assertEditAllowedForUser } from '@/lib/pin/guard';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { user_best_thirds } from '@/db/schema';
@@ -21,7 +22,9 @@ export interface SubmitBestThirdsState {
     | 'stage_not_yet'
     | 'stage_not_found'
     | 'no_user'
-    | 'no_session';
+    | 'no_session'
+    | 'pin_required'
+    | 'pin_rate_limited';
   ok?: boolean;
 }
 
@@ -69,6 +72,23 @@ export async function submitBestThirds(
           ? 'stage_not_yet'
           : 'stage_not_found',
     };
+  }
+
+  // E03 PIN guard — sits AFTER the stage gate and BEFORE the DB write.
+  const pinGate = await assertEditAllowedForUser({
+    groupId: session.user.group_id,
+    userId,
+  });
+  if (!pinGate.ok) {
+    log.warn({
+      operation: 'submit_best_thirds',
+      outcome: 'rejected',
+      reason: pinGate.reason,
+      user_id: userId,
+      group_id: session.user.group_id,
+      tournament_id: tournamentId,
+    });
+    return { error: pinGate.reason };
   }
 
   await db.transaction(async (tx) => {

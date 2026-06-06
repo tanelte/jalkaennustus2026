@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { log } from '@/lib/log';
+import { assertEditAllowedForUser } from '@/lib/pin/guard';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, user_games } from '@/db/schema';
@@ -24,7 +25,9 @@ export type SubmitKnockoutPicksError =
   | 'tbd_pair'
   | 'stage_closed'
   | 'stage_not_yet'
-  | 'stage_not_found';
+  | 'stage_not_found'
+  | 'pin_required'
+  | 'pin_rate_limited';
 
 export interface SubmitKnockoutPicksState {
   ok?: boolean;
@@ -89,6 +92,24 @@ export async function submitKnockoutPicks(
           : 'stage_not_found',
       round,
     };
+  }
+
+  // E03 PIN guard sits AFTER the stage gate and BEFORE any DB read for writes.
+  const pinGate = await assertEditAllowedForUser({
+    groupId: session.user.group_id,
+    userId,
+  });
+  if (!pinGate.ok) {
+    log.warn({
+      operation: 'submit_knockout_picks',
+      outcome: 'rejected',
+      reason: pinGate.reason,
+      round,
+      user_id: userId,
+      group_id: session.user.group_id,
+      tournament_id: tournamentId,
+    });
+    return { error: pinGate.reason, round };
   }
 
   if (submitted.size === 0) {

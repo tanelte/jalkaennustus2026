@@ -242,7 +242,12 @@ export default async function GroupStagePage() {
 
         <Card>
           <CardContent className="p-5 sm:p-6">
-            <GroupStageForm matches={matches} disabled={!gate.open} gateClosed={!gate.open} />
+            <GroupStageForm
+              matches={matches}
+              disabled={!gate.open}
+              gateClosed={!gate.open}
+              userId={userId}
+            />
           </CardContent>
         </Card>
       </main>
