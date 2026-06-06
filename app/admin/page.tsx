@@ -50,7 +50,7 @@ export default function AdminHome() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <SectionHeader icon={Shield} title="Operaatori tööriistad" />
+        <SectionHeader as="h1" icon={Shield} title="Operaatori tööriistad" />
         <p className="text-sm text-text-muted">
           Sisesta või paranda mängude lõpptulemusi ja kinnita ametlikud
           väärtused. Iga toiming arvutab mõjutatud ennustused automaatselt

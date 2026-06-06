@@ -56,7 +56,7 @@ export default async function AdminTriviaPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <SectionHeader icon={HelpCircle} title="Trivia kinnitus" />
+        <SectionHeader as="h1" icon={HelpCircle} title="Trivia kinnitus" />
         <p className="text-sm text-text-muted">
           Sisesta ametlikud vastused viiele küsimusele. Salvestada saab ka
           osaliselt — punktid arvutatakse ümber iga salvestuse järel. Q5

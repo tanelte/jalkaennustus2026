@@ -83,7 +83,7 @@ export default async function AdminMatchesPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <SectionHeader icon={Trophy} title="Mängude tulemused" />
+        <SectionHeader as="h1" icon={Trophy} title="Mängude tulemused" />
         <p className="text-sm text-text-muted">
           Sisesta või paranda skoor ja vali staatus. Salvestamisel arvutatakse
           mõjutatud mängijate punktid ümber automaatselt.
@@ -107,9 +107,9 @@ export default async function AdminMatchesPage() {
         <Card key={g.stage}>
           <CardContent className="p-0">
             <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
-              <h3 className="text-sm font-semibold capitalize text-text-primary">
+              <h2 className="text-sm font-semibold capitalize text-text-primary">
                 {prettyStage(g.stage)}
-              </h3>
+              </h2>
               <span className="text-xs text-text-muted">
                 {g.games.length} mängu
               </span>
@@ -118,7 +118,12 @@ export default async function AdminMatchesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead scope="col">Mäng</TableHead>
+                    <TableHead
+                      scope="col"
+                      className="sticky left-0 z-10 bg-surface-card"
+                    >
+                      Mäng
+                    </TableHead>
                     <TableHead scope="col" className="whitespace-nowrap">
                       Kickoff (UTC)
                     </TableHead>
@@ -134,7 +139,7 @@ export default async function AdminMatchesPage() {
                 <TableBody>
                   {g.games.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
+                      <TableCell className="sticky left-0 z-10 bg-surface-card">
                         <div className="flex flex-col">
                           <span className="font-medium text-text-primary">
                             {row.home_name ?? '—'} – {row.away_name ?? '—'}

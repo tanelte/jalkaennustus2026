@@ -34,7 +34,7 @@ export default async function AdminBestThirdsPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <SectionHeader icon={ListChecks} title="Best-thirds kinnitus" />
+        <SectionHeader as="h1" icon={ListChecks} title="Best-thirds kinnitus" />
         <p className="text-sm text-text-muted">
           Märgi ametlikud paremad kolmandad. Salvestada saab ühe haaval —
           tulemused arvutatakse ümber iga salvestuse järel. Kui kõik 8 on

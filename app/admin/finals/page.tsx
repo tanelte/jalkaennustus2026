@@ -82,7 +82,7 @@ export default async function AdminFinalsPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <SectionHeader icon={Medal} title="Finaali kinnitus" />
+        <SectionHeader as="h1" icon={Medal} title="Finaali kinnitus" />
         <p className="text-sm text-text-muted">
           Märgi ametlikud medalivõitjad: F1 (kuld), F2 (hõbe), F3 (pronks),
           F4 (neljas koht). Punktid arvutatakse ümber alles siis, kui kõik
