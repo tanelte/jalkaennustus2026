@@ -6,6 +6,10 @@ import { useActionState, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
+import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
+import type { GroupStagePeerPick } from '@/lib/peer-predictions/load-group-stage-payloads';
 import {
   submitGroupStagePredictions,
   type SubmitGroupStagePredictionsState,
@@ -92,10 +96,31 @@ interface MatchRowProps {
   pick: GroupStagePredictionCode | null;
   onPick: (gameId: string, code: GroupStagePredictionCode) => void;
   disabled: boolean;
+  peerRows: PeerRow<GroupStagePeerPick>[];
+  groupName: string;
 }
 
-function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
+function renderGroupStagePick(payload: GroupStagePeerPick) {
+  return (
+    <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 font-mono text-sm font-semibold tabular-nums text-text-primary">
+      {payload}
+    </span>
+  );
+}
+
+function MatchRow({
+  match,
+  pick,
+  onPick,
+  disabled,
+  peerRows,
+  groupName,
+}: MatchRowProps) {
   const { homeTeam, awayTeam, result } = match;
+  const submittedCount = peerRows.filter(
+    (p) => p.submittedPayload !== null,
+  ).length;
+  const peerTotal = peerRows.length;
 
   return (
     <fieldset
@@ -117,9 +142,26 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
         )}
       </legend>
 
-      <div className="text-sm font-medium text-text-primary">
-        {homeTeam.name_et}{' '}
-        <span className="text-text-muted">vs</span> {awayTeam.name_et}
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-medium text-text-primary">
+          {homeTeam.name_et}{' '}
+          <span className="text-text-muted">vs</span> {awayTeam.name_et}
+        </div>
+        {peerTotal > 0 && (
+          <PeerViewPopover<GroupStagePeerPick>
+            groupName={groupName}
+            peerRows={peerRows}
+            renderPick={renderGroupStagePick}
+            size="row"
+            trigger={
+              <PeerViewTrigger
+                n={submittedCount}
+                m={peerTotal}
+                size="row"
+              />
+            }
+          />
+        )}
       </div>
 
       <div
@@ -200,6 +242,14 @@ export interface GroupStageFormProps {
   gateClosed?: boolean;
   userId: string;
   maskedRecoveryEmail?: string | null;
+  /** Current group's display name, used in the peer-view popover header. */
+  groupName: string;
+  /**
+   * Peer rows per match. Keyed by `game_id`. The viewer + the
+   * `tegelikud tulemused` singleton are already filtered out by the seam
+   * (see `lib/peer-predictions/load-peer-predictions.ts`).
+   */
+  peerRowsByGameId: Record<string, PeerRow<GroupStagePeerPick>[]>;
 }
 
 export function GroupStageForm({
@@ -208,6 +258,8 @@ export function GroupStageForm({
   gateClosed = false,
   userId,
   maskedRecoveryEmail,
+  groupName,
+  peerRowsByGameId,
 }: GroupStageFormProps) {
   const [state, formAction, pending] = useActionState(
     submitGroupStagePredictions,
@@ -273,6 +325,8 @@ export function GroupStageForm({
                     pick={picks[m.id] ?? null}
                     onPick={onPick}
                     disabled={disabled}
+                    peerRows={peerRowsByGameId[m.id] ?? []}
+                    groupName={groupName}
                   />
                 ))}
               </div>
