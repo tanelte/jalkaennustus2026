@@ -1,0 +1,27 @@
+name: results-poller
+
+# 5-minute schedule for the live football-data poll. Vercel Hobby caps crons
+# at once per day, so the Vercel-side schedule (vercel.json) stays daily and
+# this workflow drives the real cadence by curl'ing the cron route directly.
+# The handler is idempotent + Bearer-authed; safe to invoke from anywhere.
+#
+# Required GitHub repo secrets:
+#   CRON_SECRET    - same value as on Vercel
+#   PROD_BASE_URL  - https://<your-vercel-prod-host>
+on:
+  schedule:
+    # GitHub Actions schedules have ~5-15 min drift, fine for the 15-min
+    # PRD latency target. Occasional skipped runs are harmless (idempotent).
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke /api/cron/results-poller
+        run: |
+          curl -sS --fail-with-body -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PROD_BASE_URL }}/api/cron/results-poller"
