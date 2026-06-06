@@ -1,16 +1,57 @@
+import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { Crown } from 'lucide-react';
+
+import { PodiumRow } from '@/components/podium-row';
+import { TopBar } from '@/components/top-bar';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { users } from '@/db/schema';
+import { auth, signOut } from '@/lib/auth';
 import { buildCrossTournamentMatrix } from '@/lib/cross-tournament/build-matrix';
 import {
   getGroupCrossTournamentCells,
   getGroupCrossTournamentTotals,
   getGroupTournaments,
 } from '@/lib/cross-tournament/queries';
+import { clearCurrentUserCookie, requireCurrentUserId } from '@/lib/current-user';
+import { db } from '@/lib/db';
+import { resolveTournamentCode } from '@/lib/tournaments/current';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Läbi aegade' };
+
+async function logoutAction() {
+  'use server';
+  await clearCurrentUserCookie();
+  await signOut({ redirectTo: '/login' });
+}
+
+async function loadIsOperator(userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ is_operator: users.is_operator })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.is_operator ?? false;
+}
+
+async function loadPlayerName(userId: string): Promise<string | null> {
+  const rows = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.username ?? null;
+}
 
 export default async function CrossTournamentPage() {
   const session = await auth();
@@ -19,94 +60,124 @@ export default async function CrossTournamentPage() {
   }
 
   const groupId = session.user.group_id;
-  const [tournaments, cells, totals] = await Promise.all([
+  const groupName = session.user.username;
+  const userId = await requireCurrentUserId();
+  const tournamentChip = resolveTournamentCode();
+
+  const [tournaments, cells, totals, isOperator, playerName] = await Promise.all([
     getGroupTournaments(groupId),
     getGroupCrossTournamentCells(groupId),
     getGroupCrossTournamentTotals(groupId),
+    loadIsOperator(userId),
+    loadPlayerName(userId),
   ]);
 
   const matrix = buildCrossTournamentMatrix(tournaments, cells, totals);
 
-  return (
-    <main className="mx-auto max-w-5xl p-8">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Läbi aegade</h1>
-        <Link href="/" className="text-sm text-gray-600 underline">
-          Tagasi
-        </Link>
-      </header>
-      <p className="mt-2 text-gray-600">Grupi koondtabel turniiride kaupa</p>
+  // Rows from buildCrossTournamentMatrix are already sorted by total_points
+  // (the underlying query orders by total_points DESC). Each `cells` entry is
+  // null when the user did not participate in that tournament, so a count of
+  // non-null cells gives the "Turniire" column without touching queries/views.
+  const rowsView = matrix.rows.map((row, idx) => ({
+    rank: idx + 1,
+    id: row.user_id,
+    podiumRow: {
+      userId: row.user_id,
+      username: row.username,
+      totalPoints: row.total_points,
+    },
+    tournamentsPlayed: row.cells.reduce(
+      (acc, cell) => (cell == null ? acc : acc + 1),
+      0,
+    ),
+    totalPoints: row.total_points,
+    username: row.username,
+  }));
 
-      {matrix.tournaments.length === 0 ? (
-        <p className="mt-6 rounded border p-4 text-gray-600">
-          Liiga ajalugu pole veel — kogume andmeid esimese turniiri jooksul.
-        </p>
-      ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b">
-                <th
-                  scope="col"
-                  className="py-2 pr-3 text-sm font-medium text-gray-600"
-                >
-                  Mängija
-                </th>
-                {matrix.tournaments.map((t) => (
-                  <th
-                    key={t.id}
-                    scope="col"
-                    title={t.name}
-                    className="py-2 px-2 text-right text-sm font-medium text-gray-600 tabular-nums"
-                  >
-                    {t.code}
-                  </th>
-                ))}
-                <th
-                  scope="col"
-                  className="py-2 pl-3 text-right text-sm font-medium text-gray-600"
-                >
-                  Kokku
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrix.rows.map((row) => (
-                <tr key={row.user_id} className="border-b last:border-b-0">
-                  <td className="py-2 pr-3">{row.username}</td>
-                  {row.cells.map((cell, idx) => {
-                    const isWinner = cell?.position === 1;
-                    return (
-                      <td
-                        key={matrix.tournaments[idx].id}
-                        className={`py-2 px-2 text-right tabular-nums ${
-                          isWinner ? 'bg-amber-50' : ''
-                        }`}
-                      >
-                        {cell == null ? (
-                          ''
-                        ) : (
-                          <>
-                            <span>{cell.points}</span>
-                            {cell.position != null && (
-                              <sup className="ml-1 text-xs text-gray-500">
-                                {cell.position}
-                              </sup>
-                            )}
-                          </>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="py-2 pl-3 text-right font-semibold tabular-nums">
-                    {row.total_points}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+  const topThree = rowsView.slice(0, 3);
+  const rest = rowsView.slice(3);
+
+  return (
+    <>
+      <TopBar
+        groupName={groupName}
+        playerName={playerName}
+        isOperator={isOperator}
+        tournamentChip={tournamentChip}
+        logoutAction={logoutAction}
+      />
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <header className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Crown className="h-6 w-6 text-amber-500" aria-hidden />
+            <h1 className="text-3xl font-semibold">{groupName} läbi aegade</h1>
+          </div>
+          <p className="text-sm text-text-muted">
+            Kogu liiga koondtabel kõikide turniiride peale
+          </p>
+        </header>
+
+        {rowsView.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-sm text-text-muted">
+              Liiga ajalugu pole veel — kogume andmeid esimese turniiri jooksul.
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="p-0">
+                <ol className="divide-y divide-border-default p-2">
+                  {topThree.map((row) => (
+                    <PodiumRow
+                      key={row.id}
+                      row={row.podiumRow}
+                      rank={row.rank}
+                    />
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+
+            {rest.length > 0 && (
+              <Card className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-surface-card">
+                        Koht
+                      </TableHead>
+                      <TableHead>Mängija</TableHead>
+                      <TableHead className="text-right tabular-nums">
+                        Turniire
+                      </TableHead>
+                      <TableHead className="text-right tabular-nums">
+                        Kogupunktid
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rest.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="sticky left-0 bg-inherit">
+                          {row.rank}.
+                        </TableCell>
+                        <TableCell>{row.username}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.tournamentsPlayed}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.totalPoints}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }
