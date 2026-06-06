@@ -31,6 +31,8 @@ export const games = pgTable(
     finish_type: text('finish_type'),
     result_code: text('result_code').references(() => result_codes.code),
     double_points: boolean('double_points').notNull().default(false),
+    match_id: text('match_id'),
+    result_source: text('result_source'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

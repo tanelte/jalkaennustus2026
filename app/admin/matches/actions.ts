@@ -123,6 +123,7 @@ export async function submitMatchResult(
         score_away: scoreAway,
         final_status: finalStatus,
         finish_type: persistedFinishType,
+        result_source: 'operator',
       })
       .where(eq(games.id, gameId));
 
