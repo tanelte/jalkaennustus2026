@@ -20,6 +20,22 @@ function minKickoff(games: GameSeed[], stage: GameSeed['stageCode']): Date {
   return new Date(Math.min(...matches.map((g) => new Date(g.kickoffAt).getTime())));
 }
 
+/**
+ * Earliest kickoff among group-stage matches on a given matchday (1, 2, or 3).
+ * Round labels follow `{letter}{md}-{pair}` (e.g. "A2-1" → matchday 2).
+ */
+function minGroupMatchdayKickoff(games: GameSeed[], matchday: 1 | 2 | 3): Date {
+  const matches = games.filter((g) => {
+    if (g.stageCode !== 'group_matches') return false;
+    const mdChar = g.roundLabel.charAt(1);
+    return Number(mdChar) === matchday;
+  });
+  if (matches.length === 0) {
+    throw new Error(`No group-stage matches found for matchday ${matchday}`);
+  }
+  return new Date(Math.min(...matches.map((g) => new Date(g.kickoffAt).getTime())));
+}
+
 function maxKickoff(games: GameSeed[], stage: GameSeed['stageCode']): Date {
   const matches = games.filter((g) => g.stageCode === stage);
   if (matches.length === 0) {
@@ -41,12 +57,24 @@ function maxKickoff(games: GameSeed[], stage: GameSeed['stageCode']): Date {
  * column is NOT NULL. As semifinals are decided the finals picker narrows
  * its candidate list to the four semifinalists, but the window itself stays
  * open from day one.
+ *
+ * Closing rules:
+ *  - `group_matches` closes at the FIRST MD1 kickoff (any group match
+ *    starting locks every group-stage prediction; UX spec §9 Q4, S10 AC).
+ *  - `trivia` and `best_thirds` close at the FIRST MD2 kickoff. Players get
+ *    one matchday of signal — MD1 results are visible before locking trivia
+ *    answers and best-thirds picks — but can't wait until late group stage
+ *    when the actual third-placed standings are largely knowable, which
+ *    would erode the prediction skill.
+ *  - knockout stages (`r32`, `r16`, `qf`, `sf`) close at their first kickoff.
+ *  - `final` (covers F1/F2/F3/F4 + 3rd-place) closes at the 3rd-place kickoff.
  */
 export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): StageSeed[] {
   const tournamentStart = new Date(tournament.startsAt);
   const alwaysOpen = new Date(tournamentStart.getTime() - THIRTY_DAYS_MS);
 
-  const firstGroup = minKickoff(games, 'group_matches');
+  const firstGroupMd1 = minGroupMatchdayKickoff(games, 1);
+  const firstGroupMd2 = minGroupMatchdayKickoff(games, 2);
   const lastGroup = maxKickoff(games, 'group_matches');
   const firstR32 = minKickoff(games, 'r32');
   const lastR32 = maxKickoff(games, 'r32');
@@ -62,22 +90,19 @@ export function deriveStages(tournament: TournamentSeed, games: GameSeed[]): Sta
       code: 'trivia',
       position: 1,
       opensAt: alwaysOpen.toISOString(),
-      closesAt: firstGroup.toISOString(),
+      closesAt: firstGroupMd2.toISOString(),
     },
     {
       code: 'group_matches',
       position: 2,
       opensAt: alwaysOpen.toISOString(),
-      // Single global window: closes at the FIRST group-stage kickoff so that
-      // once any group match starts, every group-stage prediction is locked
-      // (UX spec §9 Q4; S10 AC).
-      closesAt: firstGroup.toISOString(),
+      closesAt: firstGroupMd1.toISOString(),
     },
     {
       code: 'best_thirds',
       position: 3,
       opensAt: alwaysOpen.toISOString(),
-      closesAt: firstR32.toISOString(),
+      closesAt: firstGroupMd2.toISOString(),
     },
     {
       code: 'r32',
