@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { EnnustabBanner } from '@/components/ennustab-banner';
+import { FinalPeerView } from '@/components/peer-predictions/final-peer-view';
 import { TopBar } from '@/components/top-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { WindowStatePill } from '@/components/window-state-pill';
@@ -12,6 +13,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { loadFinalPeerRows } from '@/lib/peer-predictions/load-final-payloads';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -120,12 +122,20 @@ export default async function FinalPredictPage() {
     gate,
     { playerName, isOperator },
     maskedRecoveryEmail,
+    peerRows,
   ] = await Promise.all([
     loadCandidateTeams(tournamentId),
     loadCurrentPicks(userId, tournamentId),
     isStageOpen(FINAL_STAGE_CODE, tournamentId),
     loadPlayerContext(userId),
     getMaskedRecoveryEmailForUser(userId),
+    // E04-S05 — page-level peer-view payload for F1/F2/F3/F4 ordering.
+    // Submitted-only gate: peers with < 4 picks come back as null per the
+    // loader's contract.
+    loadFinalPeerRows(tournamentId, {
+      groupId: session.user.group_id,
+      viewerUserId: userId,
+    }),
   ]);
 
   return (
@@ -149,6 +159,18 @@ export default async function FinalPredictPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <WindowStatePill gate={gate} />
           <EnnustabBanner playerName={playerName} />
+        </div>
+
+        {/*
+          E04-S05 — page-level peer-view trigger, placed directly under the
+          "Ennustab: <name>" banner, aligned right. Renders nothing for a
+          singleton group (peerRows.length === 0).
+        */}
+        <div className="flex justify-end">
+          <FinalPeerView
+            groupName={session.user.username}
+            peerRows={peerRows}
+          />
         </div>
 
         <header>
