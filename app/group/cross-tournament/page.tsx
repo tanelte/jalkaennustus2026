@@ -173,7 +173,7 @@ export default async function CrossTournamentPage() {
                             ) : (
                               <span>
                                 {cell.points}
-                                {cell.position != null && (
+                                {cell.position != null && cell.points > 0 && (
                                   <sup className="ml-0.5 text-[10px] font-normal text-text-muted">
                                     {cell.position}
                                   </sup>
