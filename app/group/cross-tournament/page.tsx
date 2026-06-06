@@ -1,8 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import { Crown } from 'lucide-react';
+import { Crown, Medal } from 'lucide-react';
 
-import { PodiumRow } from '@/components/podium-row';
 import { TopBar } from '@/components/top-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -53,6 +52,12 @@ async function loadPlayerName(userId: string): Promise<string | null> {
   return rows[0]?.username ?? null;
 }
 
+const MEDAL_TINT: Record<1 | 2 | 3, string> = {
+  1: 'text-amber-500',
+  2: 'text-slate-400',
+  3: 'text-orange-600',
+};
+
 export default async function CrossTournamentPage() {
   const session = await auth();
   if (!session?.user?.group_id) {
@@ -74,29 +79,6 @@ export default async function CrossTournamentPage() {
 
   const matrix = buildCrossTournamentMatrix(tournaments, cells, totals);
 
-  // Rows from buildCrossTournamentMatrix are already sorted by total_points
-  // (the underlying query orders by total_points DESC). Each `cells` entry is
-  // null when the user did not participate in that tournament, so a count of
-  // non-null cells gives the "Turniire" column without touching queries/views.
-  const rowsView = matrix.rows.map((row, idx) => ({
-    rank: idx + 1,
-    id: row.user_id,
-    podiumRow: {
-      userId: row.user_id,
-      username: row.username,
-      totalPoints: row.total_points,
-    },
-    tournamentsPlayed: row.cells.reduce(
-      (acc, cell) => (cell == null ? acc : acc + 1),
-      0,
-    ),
-    totalPoints: row.total_points,
-    username: row.username,
-  }));
-
-  const topThree = rowsView.slice(0, 3);
-  const rest = rowsView.slice(3);
-
   return (
     <>
       <TopBar
@@ -106,76 +88,110 @@ export default async function CrossTournamentPage() {
         tournamentChip={tournamentChip}
         logoutAction={logoutAction}
       />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <header className="space-y-1">
           <div className="flex items-center gap-2">
             <Crown className="h-6 w-6 text-amber-500" aria-hidden />
             <h1 className="text-3xl font-semibold">{groupName} läbi aegade</h1>
           </div>
           <p className="text-sm text-text-muted">
-            Kogu liiga koondtabel kõikide turniiride peale
+            Grupi koondtabel turniiride kaupa
           </p>
         </header>
 
-        {rowsView.length === 0 ? (
+        {matrix.tournaments.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-sm text-text-muted">
-              Liiga ajalugu pole veel — kogume andmeid esimese turniiri jooksul.
+              Liiga ajalugu pole veel — kogume andmeid esimese turniiri
+              jooksul.
             </CardContent>
           </Card>
         ) : (
-          <>
-            <Card>
-              <CardContent className="p-0">
-                <ol className="divide-y divide-border-default p-2">
-                  {topThree.map((row) => (
-                    <PodiumRow
-                      key={row.id}
-                      row={row.podiumRow}
-                      rank={row.rank}
-                    />
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 z-10 bg-surface-card w-12">
+                    Koht
+                  </TableHead>
+                  <TableHead className="sticky left-12 z-10 bg-surface-card">
+                    Mängija
+                  </TableHead>
+                  {matrix.tournaments.map((t) => (
+                    <TableHead
+                      key={t.id}
+                      title={t.name}
+                      scope="col"
+                      className="text-right tabular-nums whitespace-nowrap"
+                    >
+                      {t.code}
+                    </TableHead>
                   ))}
-                </ol>
-              </CardContent>
-            </Card>
-
-            {rest.length > 0 && (
-              <Card className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 z-10 bg-surface-card">
-                        Koht
-                      </TableHead>
-                      <TableHead>Mängija</TableHead>
-                      <TableHead className="text-right tabular-nums">
-                        Turniire
-                      </TableHead>
-                      <TableHead className="text-right tabular-nums">
-                        Kogupunktid
-                      </TableHead>
+                  <TableHead className="text-right tabular-nums whitespace-nowrap">
+                    Kokku
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {matrix.rows.map((row, idx) => {
+                  const rank = idx + 1;
+                  const medalTint =
+                    rank === 1 || rank === 2 || rank === 3
+                      ? MEDAL_TINT[rank as 1 | 2 | 3]
+                      : null;
+                  return (
+                    <TableRow key={row.user_id}>
+                      <TableCell className="sticky left-0 z-10 bg-surface-card font-medium tabular-nums">
+                        {medalTint ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Medal
+                              className={`h-4 w-4 ${medalTint}`}
+                              aria-hidden
+                            />
+                            <span>{rank}.</span>
+                          </span>
+                        ) : (
+                          `${rank}.`
+                        )}
+                      </TableCell>
+                      <TableCell className="sticky left-12 z-10 bg-surface-card font-medium whitespace-nowrap">
+                        {row.username}
+                      </TableCell>
+                      {row.cells.map((cell, cellIdx) => {
+                        const isWinner = cell?.position === 1;
+                        return (
+                          <TableCell
+                            key={matrix.tournaments[cellIdx].id}
+                            className={`text-right tabular-nums whitespace-nowrap ${
+                              isWinner
+                                ? 'bg-brand-green-soft text-brand-green font-semibold'
+                                : ''
+                            }`}
+                          >
+                            {cell == null ? (
+                              <span className="text-text-muted">—</span>
+                            ) : (
+                              <span>
+                                {cell.points}
+                                {cell.position != null && (
+                                  <sup className="ml-0.5 text-[10px] font-normal text-text-muted">
+                                    {cell.position}
+                                  </sup>
+                                )}
+                              </span>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-right tabular-nums font-semibold whitespace-nowrap">
+                        {row.total_points}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rest.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="sticky left-0 z-10 bg-surface-card">
-                          {row.rank}.
-                        </TableCell>
-                        <TableCell>{row.username}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.tournamentsPlayed}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.totalPoints}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
-          </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
         )}
       </main>
     </>
