@@ -6,14 +6,11 @@
  * The composer is dep-injected so unit tests can drive empty-state branches
  * without a database.
  */
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import { getPlayerHistory } from '@/lib/me/history/queries';
 import { isFinalEnded as isFinalEndedDb } from '@/lib/roast/queries';
-import {
-  legacy_tournament_scores,
-  tournaments,
-  users,
-} from '@/db/schema';
+import { users } from '@/db/schema';
 import {
   getOpenStages,
   getUpcomingStages,
@@ -206,25 +203,8 @@ async function loadLegacyPreviewDb(
   userId: string,
   groupId: string,
 ): Promise<LegacyHistoryRow[]> {
-  const rows = await db
-    .select({
-      tournamentName: tournaments.name,
-      tournamentCode: tournaments.code,
-      startsAt: tournaments.starts_at,
-      totalPoints: legacy_tournament_scores.total_points,
-      finishingPosition: legacy_tournament_scores.finishing_position,
-    })
-    .from(legacy_tournament_scores)
-    .innerJoin(tournaments, eq(tournaments.id, legacy_tournament_scores.tournament_id))
-    .where(
-      and(
-        eq(legacy_tournament_scores.user_id, userId),
-        eq(legacy_tournament_scores.group_id, groupId),
-      ),
-    )
-    .orderBy(desc(tournaments.starts_at))
-    .limit(3);
-  return rows.map((r) => ({
+  const rows = await getPlayerHistory(userId, groupId);
+  return rows.slice(0, 3).map((r) => ({
     tournamentName: r.tournamentName,
     tournamentCode: r.tournamentCode,
     totalPoints: r.totalPoints,
