@@ -70,6 +70,11 @@ export default async function Home() {
     (acc, w) => acc + w.progress.submitted,
     0,
   );
+  const totalExpected = data.openWindows.reduce(
+    (acc, w) => acc + w.progress.expected,
+    0,
+  );
+  const totalRemaining = Math.max(totalExpected - totalSubmitted, 0);
 
   return (
     <>
@@ -98,8 +103,18 @@ export default async function Home() {
             <StatCard
               icon={CheckCircle}
               label="Täidetud"
-              value={openWindowsCount > 0 ? String(totalSubmitted) : '—'}
-              secondary={openWindowsCount > 0 ? 'kokku avatud akendes' : undefined}
+              value={
+                openWindowsCount > 0
+                  ? `${totalSubmitted} / ${totalExpected}`
+                  : '—'
+              }
+              secondary={
+                openWindowsCount > 0
+                  ? totalRemaining === 0
+                    ? 'kõik täidetud'
+                    : `${totalRemaining} veel täita`
+                  : undefined
+              }
             />
             <StatCard
               icon={Trophy}
