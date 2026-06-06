@@ -121,11 +121,21 @@ export default async function Home() {
               icon={Trophy}
               label="Punkte"
               value={`${data.currentScore.totalPoints} p`}
+              secondary="Tabeli vaatamiseks vajuta"
+              href="/leaderboard"
+              ariaLabel={`Punkte: ${data.currentScore.totalPoints}. Ava edetabel.`}
             />
             <StatCard
               icon={BarChart3}
               label="Koht liigas"
               value={data.currentScore.position?.toString() ?? '—'}
+              secondary="Tabeli vaatamiseks vajuta"
+              href="/leaderboard"
+              ariaLabel={
+                data.currentScore.position
+                  ? `Koht liigas: ${data.currentScore.position}. Ava edetabel.`
+                  : 'Koht liigas pole veel teada. Ava edetabel.'
+              }
             />
           </div>
         </section>
