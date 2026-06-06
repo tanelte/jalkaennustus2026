@@ -150,20 +150,30 @@ function buildGroupMatches(): GameSeed[] {
     pairs.push({ letter, md: 3, pair: 2, home: t[1], away: t[2] });
   }
 
+  // Curated double-points selection: one marquee fixture (R1/R2) per group
+  // plus the best-matched matchday-3 fixture. Operator finalises the live
+  // set before kickoff; scripts/update-double-points.ts keeps DB in sync.
+  const DOUBLE_POINTS_ROUND_LABELS = new Set([
+    // Marquee (R1/R2)
+    'A1-1', 'B1-1', 'C1-1', 'D1-1', 'D2-2', 'E1-1', 'F1-1', 'G1-1',
+    'H1-1', 'I1-1', 'I2-2', 'J1-1', 'J2-2', 'K1-1', 'L1-2',
+    // Decisive R3 (best-matched final-round fixture per group)
+    'A3-2', 'B3-2', 'C3-2', 'E3-2', 'F3-2', 'G3-2', 'H3-1', 'K3-2', 'L3-2',
+  ]);
+
   const base = new Date('2026-06-11T00:00:00Z');
   return pairs.map((p, i) => {
     const day = Math.floor(i / SLOT_HOURS_GROUP.length);
     const slot = i % SLOT_HOURS_GROUP.length;
     const kickoff = setUtc(addDays(base, day), SLOT_HOURS_GROUP[slot], 0);
+    const roundLabel = `${p.letter}${p.md}-${p.pair}`;
     return {
       stageCode: 'group_matches' as const,
-      roundLabel: `${p.letter}${p.md}-${p.pair}`,
+      roundLabel,
       kickoffAt: kickoff.toISOString(),
       homeCode: p.home,
       awayCode: p.away,
-      // Sample double-points flags on a small set of marquee matches.
-      // Operator finalises the live set before kickoff.
-      doublePoints: p.md === 3,
+      doublePoints: DOUBLE_POINTS_ROUND_LABELS.has(roundLabel),
     };
   });
 }
