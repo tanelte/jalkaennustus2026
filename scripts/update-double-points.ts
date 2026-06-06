@@ -21,41 +21,45 @@ config({ path: '.env.local' });
 
 const TOURNAMENT_CODE = 'WC2026';
 
+// Curated double-points selection for the WC2026 post-draw fixture set.
+// Strategy: one marquee MD1/MD2 fixture per group (the strongest pair meet
+// early, classic rivalry, or genuine toss-up) plus the best-matched MD3
+// fixture per group (top-two collision or 2nd-spot decider). Edit and re-run
+// this script if the operator decides to re-curate during the tournament.
 const SET_TRUE = [
-  'A1-1',
-  'B1-1',
-  'C1-1',
-  'D1-1',
-  'D2-2',
-  'E1-1',
-  'F1-1',
-  'G1-1',
-  'H1-1',
-  'I1-1',
-  'I2-2',
-  'J1-1',
-  'J2-2',
-  'K1-1',
-  'L1-2',
+  // Marquee MD1/MD2
+  'A2-2', // MEX vs KOR — host vs S. Korea, group's top two
+  'B1-2', // QAT vs SUI — Asian Cup champ vs Switzerland
+  'C1-1', // BRA vs MAR — Brazil opener vs WC2022 semi-finalist
+  'D1-2', // AUS vs TUR — close mid-tier sides
+  'E2-1', // GER vs CIV — Germany vs rising Ivory Coast
+  'F1-1', // NED vs JPN — WC2022 R16 rematch
+  'G2-1', // BEL vs IRN — group's top two early
+  'H1-2', // KSA vs URY — Asian champ vs South American power
+  'I1-1', // FRA vs SEN — long-standing rivalry
+  'J2-1', // ARG vs AUT — defending champ vs Euro qualifier
+  'K1-1', // POR vs COD — Portugal opener (likely Ronaldo's last WC)
+  'L1-1', // ENG vs CRO — WC2018 SF rematch
+  // MD3 deciders
+  'A3-1', // CZE vs MEX — 2nd-spot fight vs host
+  'B3-1', // SUI vs CAN — group's top two finale
+  'C3-2', // SCO vs BRA — Scotland's upset chance
+  'D3-1', // TUR vs USA — 1st-place decider
+  'E3-1', // ECU vs GER — advance-or-go-home for Ecuador
+  'F3-2', // JPN vs SWE — 2nd-spot decider
+  'G3-2', // EGY vs IRN — 2nd-spot battle
+  'H3-1', // URY vs ESP — group's top two
+  'I3-1', // NOR vs FRA — Haaland vs Mbappé
+  'J3-2', // ALG vs AUT — battle for 2nd
+  'K3-1', // COL vs POR — top two finale
+  'L3-2', // CRO vs GHA — Croatia's 2nd-spot path
 ];
 
-const SET_FALSE = [
-  'A3-1',
-  'B3-1',
-  'C3-1',
-  'D3-1',
-  'D3-2',
-  'E3-1',
-  'F3-1',
-  'G3-1',
-  'H3-2',
-  'I3-1',
-  'I3-2',
-  'J3-1',
-  'J3-2',
-  'K3-1',
-  'L3-1',
-];
+// Round labels that were doubles under the prior placeholder draw but
+// shouldn't be under the post-draw selection. Empty after the reseed since
+// every fixture is born with double_points=false; populate this if a future
+// re-curation needs to flip flags back to false.
+const SET_FALSE: string[] = [];
 
 function logLine(level: 'info' | 'warn' | 'error', fields: Record<string, unknown>) {
   // eslint-disable-next-line no-console
