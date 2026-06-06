@@ -38,13 +38,14 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-surface-card-dark text-text-on-dark">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-        {/* Left: wordmark + active-tournament chip */}
+        {/* Left: wordmark + active-tournament chip — stacked on mobile so the
+            chip drops to a second line instead of competing with the action row. */}
         <Link
           href="/"
-          className={`flex items-baseline gap-2 rounded-md ${focusRing}`}
+          className={`flex flex-col items-start gap-0.5 sm:flex-row sm:items-baseline sm:gap-2 rounded-md ${focusRing}`}
           aria-label="Avaleht"
         >
-          <span className="text-lg font-semibold tracking-tight">Jalkaennustus</span>
+          <span className="text-lg font-semibold tracking-tight leading-none">Jalkaennustus</span>
           <Badge
             variant="secondary"
             className="bg-white/10 text-text-on-dark hover:bg-white/15 border-transparent uppercase tracking-wide"
@@ -74,15 +75,11 @@ export function AppHeader({
           )}
         </nav>
 
-        {/* Mobile: dropdown nav (< md) */}
-        <div className="md:hidden">
-          <AppHeaderMobileNav isOperator={isOperator} />
-        </div>
-
-        {/* Right: chips + actions */}
+        {/* Right cluster — pushed to the end on every breakpoint. */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3 text-sm">
-          {/* League chip — hidden below sm per UX §17 */}
-          <span className="hidden text-text-on-dark-muted sm:inline">
+          {/* Active-player chip remains visible on phones so the user still
+              sees who they're logged in as; group chip is desktop-only. */}
+          <span className="hidden text-text-on-dark-muted md:inline">
             Liiga: <strong className="text-text-on-dark">{groupName}</strong>
           </span>
           {playerName && (
@@ -90,6 +87,14 @@ export function AppHeader({
               Sina: <strong className="text-text-on-dark">{playerName}</strong>
             </span>
           )}
+
+          {/* Mobile (< md): the three account actions live inside this menu. */}
+          <div className="md:hidden">
+            <AppHeaderMobileNav isOperator={isOperator} logoutAction={logoutAction} />
+          </div>
+
+          {/* Desktop (≥ md): the three account actions render inline. */}
+          <div className="hidden items-center gap-2 sm:gap-3 md:flex">
 
           <Button
             asChild
@@ -99,8 +104,7 @@ export function AppHeader({
           >
             <Link href="/me">
               <KeyRound aria-hidden="true" />
-              <span className="hidden sm:inline">Minu konto</span>
-              <span className="sr-only sm:hidden">Minu konto ja PIN</span>
+              <span>Minu konto</span>
             </Link>
           </Button>
 
@@ -112,8 +116,7 @@ export function AppHeader({
           >
             <Link href="/select-user">
               <ArrowLeftRight aria-hidden="true" />
-              <span className="hidden sm:inline">Vaheta mängijat</span>
-              <span className="sr-only sm:hidden">Vaheta mängijat</span>
+              <span>Vaheta mängijat</span>
             </Link>
           </Button>
 
@@ -125,10 +128,10 @@ export function AppHeader({
               className={`${outlineOnDark} ${focusRing}`}
             >
               <LogOut aria-hidden="true" />
-              <span className="hidden sm:inline">Logi välja</span>
-              <span className="sr-only sm:hidden">Logi välja</span>
+              <span>Logi välja</span>
             </Button>
           </form>
+          </div>
         </div>
       </div>
     </header>
