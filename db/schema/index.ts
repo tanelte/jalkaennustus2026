@@ -12,3 +12,4 @@ export * from './user-best-thirds';
 export * from './questions';
 export * from './user-questions';
 export * from './legacy-tournament-scores';
+export * from './user-pin-resets';

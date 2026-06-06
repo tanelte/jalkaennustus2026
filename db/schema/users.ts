@@ -10,6 +10,10 @@ export const users = pgTable('users', {
   username: text('username').notNull(),
   is_system_user: boolean('is_system_user').notNull().default(false),
   is_operator: boolean('is_operator').notNull().default(false),
+  // E03 — per-user PIN. Both columns nullable: a user only carries PIN material
+  // once they opt in via /me/pin. Disabling the PIN clears both atomically.
+  pin_hash: text('pin_hash'),
+  recovery_email: text('recovery_email'),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
