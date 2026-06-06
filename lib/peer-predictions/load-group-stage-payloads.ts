@@ -12,14 +12,13 @@ import { user_groups, users } from '@/db/schema';
 import { asc, isNull } from 'drizzle-orm';
 
 /**
- * The shape the group-stage popover renders per peer. Mirrors the row's own
- * 1/X/2 picker exactly — the popover-side `renderPick` reads only this value.
- *
- * Note: the group-stage prediction column accepts the platform's expanded
- * five-code form (`1A`, `1B`, `X`, `2A`, `2B`); the popover collapses these
- * into the user-visible 1 / X / 2 shape for parity with the row chip.
+ * The shape the group-stage popover renders per peer. The full 5-value
+ * prediction code (`1A`, `1B`, `X`, `2A`, `2B`) is preserved so the popover
+ * can render a meaningful label (team name + win-margin), not a bare digit.
  */
-export type GroupStagePeerPick = '1' | 'X' | '2';
+export type GroupStagePeerPick = '1A' | '1B' | 'X' | '2A' | '2B';
+
+const VALID_CODES: ReadonlySet<string> = new Set(['1A', '1B', 'X', '2A', '2B']);
 
 export interface LoadGroupStagePayloadsDeps {
   findPredictionsForGame: (
@@ -35,13 +34,9 @@ export interface LoadAllGroupStagePayloadsDeps {
   ) => Promise<Array<{ user_id: string; game_id: string; prediction: string }>>;
 }
 
-function collapsePrediction(raw: string | null | undefined): GroupStagePeerPick | null {
+function parsePrediction(raw: string | null | undefined): GroupStagePeerPick | null {
   if (!raw) return null;
-  if (raw === 'X') return 'X';
-  const head = raw[0];
-  if (head === '1') return '1';
-  if (head === '2') return '2';
-  return null;
+  return VALID_CODES.has(raw) ? (raw as GroupStagePeerPick) : null;
 }
 
 /**
@@ -56,7 +51,7 @@ export async function loadGroupStagePayloadsCore(
   const rows = await deps.findPredictionsForGame(gameId, peerIds);
   const out = new Map<string, GroupStagePeerPick>();
   for (const r of rows) {
-    const collapsed = collapsePrediction(r.prediction);
+    const collapsed = parsePrediction(r.prediction);
     if (collapsed) out.set(r.user_id, collapsed);
   }
   return out;
@@ -129,7 +124,7 @@ export async function loadAllGroupStagePeerRowsForMatchesCore(
   const byGame = new Map<string, Map<string, GroupStagePeerPick>>();
   for (const id of gameIds) byGame.set(id, new Map());
   for (const r of rows) {
-    const collapsed = collapsePrediction(r.prediction);
+    const collapsed = parsePrediction(r.prediction);
     if (collapsed) byGame.get(r.game_id)?.set(r.user_id, collapsed);
   }
 

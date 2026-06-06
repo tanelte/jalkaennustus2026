@@ -103,12 +103,38 @@ interface MatchRowProps {
   groupName: string;
 }
 
-function renderGroupStagePick(payload: GroupStagePeerPick) {
-  return (
-    <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 font-mono text-sm font-semibold tabular-nums text-text-primary">
-      {payload}
-    </span>
-  );
+/**
+ * Build a per-match renderer that turns the 5-value prediction code into a
+ * meaningful label: team name + win-margin caption (or "Viik" for X). The
+ * closure captures `homeTeam` / `awayTeam` so each match row gets its own
+ * renderer. Mirrors the same `teamLabelForCode` semantics used for the
+ * viewer's own pick, kept compact for the popover row.
+ */
+function buildRenderGroupStagePick(home: TeamView, away: TeamView) {
+  return function renderGroupStagePick(payload: GroupStagePeerPick) {
+    if (payload === 'X') {
+      return (
+        <span className="inline-flex items-center rounded-md border border-border-default bg-bg-app px-2 py-0.5 text-xs font-medium text-text-primary">
+          Viik
+        </span>
+      );
+    }
+    const team = payload[0] === '1' ? home : away;
+    const margin = payload[1] === 'A' ? '1–2' : '3+';
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-app px-2 py-0.5 text-xs font-medium text-text-primary"
+        aria-label={teamLabelForCode(
+          payload as GroupStagePredictionCode,
+          home,
+          away,
+        )}
+      >
+        <span>{team.name_et}</span>
+        <span className="font-mono tabular-nums text-text-muted">{margin}</span>
+      </span>
+    );
+  };
 }
 
 function MatchRow({
@@ -151,7 +177,7 @@ function MatchRow({
           <PeerViewPopover<GroupStagePeerPick>
             groupName={groupName}
             peerRows={peerRows}
-            renderPick={renderGroupStagePick}
+            renderPick={buildRenderGroupStagePick(homeTeam, awayTeam)}
             size="row"
             trigger={
               <PeerViewTrigger

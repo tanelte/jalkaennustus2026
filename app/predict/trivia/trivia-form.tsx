@@ -1,7 +1,7 @@
 'use client';
 
 import { KeyRound } from 'lucide-react';
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,17 +54,25 @@ const INPUT_BASE =
   'mt-2 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
 /**
- * Renders one peer's submitted trivia answer in the popover. The peer view
- * shows whatever the peer submitted as a free-text string — `team`, `integer`
- * and free-text answer-shapes all collapse to the stored text here. Scoring's
- * Q5-conditional-on-Q4 trick is NOT applied on the peer-view side (S02 AC).
+ * Build a per-question renderer for the peer-view popover. For `team`-shape
+ * questions the stored answer is a team code (e.g. `ARG`); we resolve it to
+ * the team's Estonian display name. For `integer` / free-text shapes the
+ * stored answer is already the display value. Scoring's Q5-conditional-on-Q4
+ * trick is NOT applied on the peer-view side (S02 AC).
  */
-function renderTriviaPick(payload: TriviaPeerAnswer) {
-  return (
-    <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 text-sm font-semibold text-text-primary">
-      {payload}
-    </span>
-  );
+function buildRenderTriviaPick(
+  answerShape: string,
+  teamNameByCode: ReadonlyMap<string, string>,
+) {
+  return function renderTriviaPick(payload: TriviaPeerAnswer) {
+    const display =
+      answerShape === 'team' ? teamNameByCode.get(payload) ?? payload : payload;
+    return (
+      <span className="inline-flex items-center rounded-md border border-border-default bg-bg-app px-2 py-0.5 text-xs font-medium text-text-primary">
+        {display}
+      </span>
+    );
+  };
 }
 
 export function TriviaForm({
@@ -97,6 +105,11 @@ export function TriviaForm({
   const [pinModalOpen, setPinModalOpen] = useState(false);
 
   const disabled = mode !== 'edit';
+
+  const teamNameByCode = useMemo(
+    () => new Map(teams.map((t) => [t.code, t.name_et])),
+    [teams],
+  );
 
   return (
     <form
@@ -137,7 +150,7 @@ export function TriviaForm({
                 <PeerViewPopover<TriviaPeerAnswer>
                   groupName={groupName}
                   peerRows={peerRows}
-                  renderPick={renderTriviaPick}
+                  renderPick={buildRenderTriviaPick(q.answerShape, teamNameByCode)}
                   size="row"
                   trigger={
                     <PeerViewTrigger

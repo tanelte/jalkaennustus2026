@@ -14,7 +14,7 @@ describe('loadGroupStagePayloadsCore', () => {
     expect(find).not.toHaveBeenCalled();
   });
 
-  it('collapses 1A/1B/X/2A/2B to 1/X/2', async () => {
+  it('passes through the full 5-value prediction code', async () => {
     const out = await loadGroupStagePayloadsCore(
       'game-1',
       ['u-a', 'u-b', 'u-c', 'u-d', 'u-e'],
@@ -28,11 +28,11 @@ describe('loadGroupStagePayloadsCore', () => {
         ],
       },
     );
-    expect(out.get('u-a')).toBe('1');
-    expect(out.get('u-b')).toBe('1');
+    expect(out.get('u-a')).toBe('1A');
+    expect(out.get('u-b')).toBe('1B');
     expect(out.get('u-c')).toBe('X');
-    expect(out.get('u-d')).toBe('2');
-    expect(out.get('u-e')).toBe('2');
+    expect(out.get('u-d')).toBe('2A');
+    expect(out.get('u-e')).toBe('2B');
   });
 
   it('drops unrecognised prediction codes', async () => {
@@ -43,7 +43,7 @@ describe('loadGroupStagePayloadsCore', () => {
       ],
     });
     expect(out.has('u-a')).toBe(false);
-    expect(out.get('u-b')).toBe('1');
+    expect(out.get('u-b')).toBe('1A');
   });
 });
 
@@ -73,8 +73,8 @@ describe('loadAllGroupStagePeerRowsForMatchesCore', () => {
     );
 
     expect(out.get('g-1')).toEqual([
-      { peerId: 'u-mart', peerName: 'Mart', submittedPayload: '1' },
-      { peerId: 'u-anu', peerName: 'Anu', submittedPayload: '2' },
+      { peerId: 'u-mart', peerName: 'Mart', submittedPayload: '1A' },
+      { peerId: 'u-anu', peerName: 'Anu', submittedPayload: '2B' },
     ]);
     expect(out.get('g-2')).toEqual([
       { peerId: 'u-mart', peerName: 'Mart', submittedPayload: 'X' },
