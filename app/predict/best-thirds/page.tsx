@@ -16,7 +16,9 @@ import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { user_best_thirds, users } from '@/db/schema';
+import { loadBestThirdsPeerRows } from '@/lib/peer-predictions/load-best-thirds-payloads';
 import { BestThirdsForm } from './best-thirds-form';
+import { BestThirdsPeerBar } from './best-thirds-peer-bar';
 import { BEST_THIRDS_STAGE_CODE } from './constants';
 
 export const dynamic = 'force-dynamic';
@@ -69,12 +71,18 @@ export default async function BestThirdsPage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [picks, gate, { playerName, isOperator }, maskedRecoveryEmail] =
+  const [picks, gate, { playerName, isOperator }, maskedRecoveryEmail, peerRows] =
     await Promise.all([
       loadCurrentPicks(userId, tournamentId),
       isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId),
       loadPlayerContext(userId),
       getMaskedRecoveryEmailForUser(userId),
+      // E04-S03 — page-level peer-view rows; submitted-only gate (= 8 letters)
+      // is enforced in the loader. One batched query against user_best_thirds.
+      loadBestThirdsPeerRows(tournamentId, {
+        groupId: session.user.group_id,
+        viewerUserId: userId,
+      }),
     ]);
 
   return (
@@ -99,6 +107,15 @@ export default async function BestThirdsPage() {
           <WindowStatePill gate={gate} />
           <EnnustabBanner playerName={playerName} />
         </div>
+
+        {/*
+         * E04-S03 — page-level peer-view trigger sits directly under the
+         * "Ennustab: <name>" banner, right-aligned per UX spec §2.2.
+         */}
+        <BestThirdsPeerBar
+          groupName={session.user.username}
+          peerRows={peerRows}
+        />
 
         <header>
           <h1 className="text-3xl font-semibold text-text-primary">
