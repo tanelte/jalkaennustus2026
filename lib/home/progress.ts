@@ -44,6 +44,17 @@ export interface GetStageProgressDeps {
   countUserGamesGroupStage: (userId: string, tournamentId: string) => Promise<number>;
   countGroupStageGames: (tournamentId: string) => Promise<number>;
   countUserBestThirds: (userId: string, tournamentId: string) => Promise<number>;
+  /**
+   * Counts `user_games` rows scoped to a knockout stage_code. The knockout
+   * form writes per-match prediction codes ('1A'/'1B'/'2A'/'2B') into
+   * `user_games`, so progress for r32/r16/qf/sf reads from there — not from
+   * `user_teams` (which holds team-advancement / final medal slots).
+   */
+  countUserGamesByStage: (
+    userId: string,
+    tournamentId: string,
+    stageCode: string,
+  ) => Promise<number>;
   countUserTeams: (
     userId: string,
     tournamentId: string,
@@ -75,7 +86,7 @@ export async function getStageProgress(
     case 'r16':
     case 'qf':
     case 'sf': {
-      const submitted = await deps.countUserTeams(userId, tournamentId, stageCode);
+      const submitted = await deps.countUserGamesByStage(userId, tournamentId, stageCode);
       return { submitted, expected: KNOCKOUT_EXPECTED[stageCode], unit: 'esitatud' };
     }
     case 'final': {
@@ -109,6 +120,17 @@ const defaultDeps: GetStageProgressDeps = {
       .select({ count: sql<number>`count(*)::int` })
       .from(games)
       .where(and(eq(games.tournament_id, tournamentId), eq(games.stage_code, 'group_matches')));
+    return Number(rows[0]?.count ?? 0);
+  },
+  async countUserGamesByStage(userId, tournamentId, stageCode) {
+    const { rows } = await db.execute<{ count: number | string }>(sql`
+      select count(*)::int as count
+        from ${user_games} ug
+        join ${games} g on g.id = ug.game_id
+       where ug.user_id = ${userId}
+         and g.tournament_id = ${tournamentId}
+         and g.stage_code = ${stageCode}
+    `);
     return Number(rows[0]?.count ?? 0);
   },
   async countUserBestThirds(userId, tournamentId) {

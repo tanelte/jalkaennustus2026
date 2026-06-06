@@ -6,6 +6,7 @@ function makeDeps(overrides: Partial<GetStageProgressDeps> = {}): GetStageProgre
     countUserGamesGroupStage: vi.fn(async () => 0),
     countGroupStageGames: vi.fn(async () => 0),
     countUserBestThirds: vi.fn(async () => 0),
+    countUserGamesByStage: vi.fn(async () => 0),
     countUserTeams: vi.fn(async () => 0),
     countUserTrivia: vi.fn(async () => 0),
     countTriviaQuestions: vi.fn(async () => 0),
@@ -46,8 +47,8 @@ describe('getStageProgress', () => {
     expect(out).toEqual({ submitted: 5, expected: 8, unit: 'valitud' });
   });
 
-  it('knockout rounds use the right round filter and expected count', async () => {
-    const countUserTeams = vi.fn(async () => 3);
+  it('knockout rounds count user_games by stage_code', async () => {
+    const countUserGamesByStage = vi.fn(async () => 3);
     const cases = [
       { code: 'r32', expected: 16 },
       { code: 'r16', expected: 8 },
@@ -55,9 +56,9 @@ describe('getStageProgress', () => {
       { code: 'sf', expected: 2 },
     ] as const;
     for (const c of cases) {
-      const out = await getStageProgress(c.code, 'u1', 't1', makeDeps({ countUserTeams }));
+      const out = await getStageProgress(c.code, 'u1', 't1', makeDeps({ countUserGamesByStage }));
       expect(out).toEqual({ submitted: 3, expected: c.expected, unit: 'esitatud' });
-      expect(countUserTeams).toHaveBeenCalledWith('u1', 't1', c.code);
+      expect(countUserGamesByStage).toHaveBeenCalledWith('u1', 't1', c.code);
     }
   });
 
