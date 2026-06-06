@@ -1,6 +1,9 @@
 'use client';
 
 import { startTransition, useActionState, useState } from 'react';
+
+import { SubmitButton } from '@/components/submit-button';
+import { Input } from '@/components/ui/input';
 import { submitMatchResult, type SubmitMatchResultState } from './actions';
 
 const initialState: SubmitMatchResultState = {};
@@ -47,6 +50,9 @@ export interface MatchResultFormProps {
 
 const GROUP_STAGE_CODE = 'group_matches';
 
+const SELECT_CLASSES =
+  'h-9 rounded-md border border-border-default bg-surface-card px-2 py-1 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+
 export function MatchResultForm(props: MatchResultFormProps) {
   const [state, formAction, pending] = useActionState(submitMatchResult, initialState);
   const matched = state.game_id === props.gameId;
@@ -81,40 +87,34 @@ export function MatchResultForm(props: MatchResultFormProps) {
       noValidate
     >
       <input type="hidden" name="game_id" value={props.gameId} />
-      <label className="flex items-center gap-1">
-        <span className="sr-only">Kodumeeskonna skoor</span>
-        <input
-          type="number"
-          name="score_home"
-          min={0}
-          max={99}
-          value={scoreHome}
-          onChange={(e) => setScoreHome(e.target.value)}
-          className="w-14 rounded border px-2 py-1"
-          aria-label="Kodumeeskonna skoor"
-        />
-      </label>
-      <span aria-hidden>–</span>
-      <label className="flex items-center gap-1">
-        <span className="sr-only">Võõrsil meeskonna skoor</span>
-        <input
-          type="number"
-          name="score_away"
-          min={0}
-          max={99}
-          value={scoreAway}
-          onChange={(e) => setScoreAway(e.target.value)}
-          className="w-14 rounded border px-2 py-1"
-          aria-label="Võõrsil meeskonna skoor"
-        />
-      </label>
+      <Input
+        type="number"
+        name="score_home"
+        min={0}
+        max={99}
+        value={scoreHome}
+        onChange={(e) => setScoreHome(e.target.value)}
+        className="w-16 tabular-nums"
+        aria-label="Kodumeeskonna skoor"
+      />
+      <span aria-hidden className="text-text-muted">–</span>
+      <Input
+        type="number"
+        name="score_away"
+        min={0}
+        max={99}
+        value={scoreAway}
+        onChange={(e) => setScoreAway(e.target.value)}
+        className="w-16 tabular-nums"
+        aria-label="Võõrsil meeskonna skoor"
+      />
       <label className="flex items-center gap-1">
         <span className="sr-only">Staatus</span>
         <select
           name="final_status"
           value={finalStatus}
           onChange={(e) => setFinalStatus(e.target.value)}
-          className="rounded border px-2 py-1"
+          className={SELECT_CLASSES}
           aria-label="Mängu staatus"
         >
           {STATUS_OPTIONS.map((opt) => (
@@ -131,7 +131,7 @@ export function MatchResultForm(props: MatchResultFormProps) {
             name="finish_type"
             value={finishType}
             onChange={(e) => setFinishType(e.target.value)}
-            className="rounded border px-2 py-1"
+            className={SELECT_CLASSES}
             aria-label="Lõpetus (normaalaeg / lisaaeg / penaltid)"
             title="Knockoutmängu lõpetus: A = normaalaeg, B = lisaaeg või penaltid. Penalti-mängu puhul märgi penaltisuhe skooriks (nt 4-3)."
           >
@@ -143,20 +143,20 @@ export function MatchResultForm(props: MatchResultFormProps) {
           </select>
         </label>
       )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-black px-3 py-1 text-white disabled:opacity-50"
+      <SubmitButton
+        pendingOverride={pending}
+        size="sm"
+        className="bg-brand-green hover:bg-brand-green-hover"
       >
-        {pending ? 'Salvestan…' : 'Salvesta'}
-      </button>
+        Salvesta
+      </SubmitButton>
       {matched && state.error && ERROR_COPY[state.error] && (
-        <span role="alert" className="text-red-700">
+        <span role="alert" className="text-state-closed-text">
           {ERROR_COPY[state.error]}
         </span>
       )}
       {matched && state.ok && (
-        <span role="status" className="text-green-700">
+        <span role="status" className="text-brand-green">
           Salvestatud.
         </span>
       )}

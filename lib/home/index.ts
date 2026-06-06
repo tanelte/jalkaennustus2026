@@ -4,6 +4,7 @@ export {
   type HomeInput,
   type OpenWindowCard,
   type UpcomingWindowCard,
+  type ClosedWindowCard,
   type LegacyHistoryRow,
   type CrossTournamentRow,
   type CurrentScore,

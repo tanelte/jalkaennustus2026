@@ -1,6 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
+import { XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { loginAction, type LoginError, type LoginState } from './actions';
 
 const initialState: LoginState = {};
@@ -13,45 +17,42 @@ export function LoginForm() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <form action={formAction} className="mt-6 space-y-4" noValidate>
-      <div>
-        <label htmlFor="username" className="block text-sm font-medium">
-          Kasutajanimi
-        </label>
-        <input
+    <form action={formAction} className="space-y-5" noValidate>
+      {state.error && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-md bg-state-closed-bg px-3 py-2 text-sm text-state-closed-text"
+        >
+          <XCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{ERROR_COPY[state.error]}</p>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Label htmlFor="username">Liiga kasutajanimi</Label>
+        <Input
           id="username"
           name="username"
           type="text"
           autoComplete="username"
           required
-          className="mt-1 block w-full rounded border px-3 py-2"
         />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium">
-          Parool
-        </label>
-        <input
+      <div className="space-y-1.5">
+        <Label htmlFor="password">Parool</Label>
+        <Input
           id="password"
           name="password"
           type="password"
           autoComplete="current-password"
           required
-          className="mt-1 block w-full rounded border px-3 py-2"
         />
       </div>
-      {state.error && (
-        <p role="alert" className="text-sm text-red-700">
-          {ERROR_COPY[state.error]}
-        </p>
-      )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Sisselogimine…' : 'Logi sisse'}
-      </button>
+      <Button type="submit" disabled={pending} className="w-full">
+        {pending ? 'Salvestab…' : 'Logi sisse'}
+      </Button>
+      <p className="text-center text-sm text-text-muted">
+        Sa pead teadma oma liiga jagatud parooli.
+      </p>
     </form>
   );
 }

@@ -19,6 +19,13 @@ export async function getTournamentIdByCode(code: string): Promise<string | null
   return rows[0]?.id ?? null;
 }
 
+export async function getTournamentNameByCode(code: string): Promise<string | null> {
+  const { rows } = await db.execute<{ name: string }>(
+    sql`select name from tournaments where code = ${code} limit 1`,
+  );
+  return rows[0]?.name ?? null;
+}
+
 export async function getGroupLeaderboard(
   groupId: string,
   tournamentId: string,

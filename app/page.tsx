@@ -1,17 +1,31 @@
 import { eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import {
+  BarChart3,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Crown,
+  Lock,
+  Trophy,
+} from 'lucide-react';
+
+import { ClosedWindowRow } from '@/components/closed-window-row';
+import { HeroGreeting } from '@/components/hero-greeting';
+import { HistoryRow } from '@/components/history-row';
+import { OpenWindowCard } from '@/components/open-window-card';
+import { PodiumRow } from '@/components/podium-row';
+import { RoastTile } from '@/components/roast-tile';
+import { SectionHeader } from '@/components/section-header';
+import { StatCard } from '@/components/stat-card';
 import { TopBar } from '@/components/top-bar';
+import { Card } from '@/components/ui/card';
+import { UpcomingRow } from '@/components/upcoming-row';
 import { auth, signOut } from '@/lib/auth';
 import { clearCurrentUserCookie, requireCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
-import {
-  formatDeadlineAbsolute,
-  formatDeadlineRelative,
-  getHomeData,
-  type OpenWindowCard,
-  type UpcomingWindowCard,
-} from '@/lib/home';
+import { getHomeData } from '@/lib/home';
 import { getCurrentTournamentId, resolveTournamentCode } from '@/lib/tournaments/current';
 import { users } from '@/db/schema';
 
@@ -50,7 +64,18 @@ export default async function Home() {
     loadIsOperator(userId),
   ]);
 
-  const showOpenWindowsBlock = data.openWindows.length > 0 || data.roastUnlocked;
+  // Derive 4 stat-card values from the existing data shape — no helper
+  // changes to lib/home/home-data.ts (per S03 Scope).
+  const openWindowsCount = data.openWindows.length;
+  const totalSubmitted = data.openWindows.reduce(
+    (acc, w) => acc + w.progress.submitted,
+    0,
+  );
+  const totalExpected = data.openWindows.reduce(
+    (acc, w) => acc + w.progress.expected,
+    0,
+  );
+  const totalRemaining = Math.max(totalExpected - totalSubmitted, 0);
 
   return (
     <>
@@ -61,179 +86,185 @@ export default async function Home() {
         tournamentChip={tournamentChip}
         logoutAction={logoutAction}
       />
-      <main className="mx-auto max-w-3xl space-y-8 p-4 sm:p-8">
-        <section aria-labelledby="tervitus">
-          <h1 id="tervitus" className="text-2xl font-semibold">
-            Tere, {data.greeting.playerName}. Liiga: {data.greeting.groupName}.
-          </h1>
+      <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        {/* Hero */}
+        <HeroGreeting
+          greeting={data.greeting.playerName}
+          groupName={data.greeting.groupName}
+        />
+
+        {/* 4-up stat cards */}
+        <section aria-label="Sinu number ülevaade">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+            <StatCard
+              icon={Calendar}
+              label="Avatud ennustused"
+              value={`${openWindowsCount} ${openWindowsCount === 1 ? 'aken' : 'akent'}`}
+            />
+            <StatCard
+              icon={CheckCircle}
+              label="Täidetud"
+              value={
+                openWindowsCount > 0
+                  ? `${totalSubmitted} / ${totalExpected}`
+                  : '—'
+              }
+              secondary={
+                openWindowsCount > 0
+                  ? totalRemaining === 0
+                    ? 'kõik täidetud'
+                    : `${totalRemaining} veel täita`
+                  : undefined
+              }
+            />
+            <StatCard
+              icon={Trophy}
+              label="Punkte"
+              value={`${data.currentScore.totalPoints} p`}
+              secondary="Tabeli vaatamiseks vajuta"
+              href="/leaderboard"
+              ariaLabel={`Punkte: ${data.currentScore.totalPoints}. Ava edetabel.`}
+            />
+            <StatCard
+              icon={BarChart3}
+              label="Koht liigas"
+              value={data.currentScore.position?.toString() ?? '—'}
+              secondary="Tabeli vaatamiseks vajuta"
+              href="/leaderboard"
+              ariaLabel={
+                data.currentScore.position
+                  ? `Koht liigas: ${data.currentScore.position}. Ava edetabel.`
+                  : 'Koht liigas pole veel teada. Ava edetabel.'
+              }
+            />
+          </div>
         </section>
 
-        {showOpenWindowsBlock && (
-          <section aria-labelledby="avatud-aknad" className="space-y-3">
-            <h2 id="avatud-aknad" className="text-lg font-medium">
-              Avatud aknad
-            </h2>
-            {data.roastUnlocked && <RoastTile />}
-            {data.openWindows.map((window) => (
-              <OpenWindowCardView key={window.code} card={window} />
-            ))}
-          </section>
-        )}
-
-        {data.upcomingWindows.length > 0 && (
-          <section aria-labelledby="tulekul" className="rounded border p-4">
-            <h2 id="tulekul" className="text-lg font-medium">
-              Tulekul
-            </h2>
-            <ul className="mt-2 space-y-1 text-sm">
-              {data.upcomingWindows.map((window) => (
-                <UpcomingWindowRow key={window.code} card={window} />
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section aria-labelledby="sinu-seis" className="rounded border p-4">
-          <h2 id="sinu-seis" className="text-lg font-medium">
-            Sinu seis
-          </h2>
-          <p className="mt-2 text-sm text-gray-700">
-            Hetke punktid {tournamentChip}:{' '}
-            <strong className="tabular-nums">{data.currentScore.totalPoints}</strong>
-            {'  '}
-            Asetus liigas:{' '}
-            <strong className="tabular-nums">
-              {data.currentScore.position ?? '—'}
-            </strong>
-          </p>
-          <p className="mt-3 text-sm">
-            <Link href="/leaderboard" className="text-blue-700 hover:underline">
-              Vaata tabelit →
-            </Link>
-          </p>
-        </section>
-
-        <section aria-labelledby="sinu-ajalugu" className="rounded border p-4">
-          <h2 id="sinu-ajalugu" className="text-lg font-medium">
-            Sinu ajalugu
-          </h2>
-          {data.legacyPreview.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-600">
-              Esimene turniir — kogu ajalugu algab siit.
-            </p>
+        {/* Avatud aknad — section header + 4-up grid */}
+        <section aria-labelledby="avatud-aknad" className="space-y-4">
+          <SectionHeader
+            icon={Calendar}
+            title="Avatud aknad"
+            id="avatud-aknad"
+          />
+          {data.openWindows.length === 0 && !data.roastUnlocked ? (
+            <Card className="p-6 text-center text-sm text-text-muted">
+              Hetkel pole ühtegi avatud akent.
+            </Card>
           ) : (
-            <>
-              <ul className="mt-2 space-y-1 text-sm">
-                {data.legacyPreview.map((row) => (
-                  <li
-                    key={row.tournamentCode}
-                    className="flex flex-wrap items-baseline justify-between gap-2"
-                  >
-                    <span>
-                      <strong>{row.tournamentCode}</strong> — {row.tournamentName}
-                    </span>
-                    <span className="tabular-nums text-gray-700">
-                      {row.totalPoints} p — {row.finishingPosition}. koht
-                    </span>
-                  </li>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {data.roastUnlocked && <RoastTile href="/roast" />}
+              {data.openWindows.map((window) => (
+                <OpenWindowCard key={window.code} window={window} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 2-up: Tulekul + Suletud aknad */}
+        <section
+          aria-label="Tulekul ja suletud aknad"
+          className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+        >
+          <Card className="p-5">
+            <SectionHeader icon={Clock} title="Tulekul" />
+            {data.upcomingWindows.length === 0 ? (
+              <p className="mt-3 text-sm text-text-muted">
+                Ühtegi akent ei ole hetkel ootel.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-border-default">
+                {data.upcomingWindows.map((window) => (
+                  <UpcomingRow key={window.code} window={window} />
                 ))}
               </ul>
-              <p className="mt-3 text-sm">
-                <Link href="/me/history" className="text-blue-700 hover:underline">
-                  Vaata kogu ajalugu →
-                </Link>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <SectionHeader icon={Lock} title="Suletud aknad" />
+            {data.closedWindows.length === 0 ? (
+              <p className="mt-3 text-sm text-text-muted">
+                Veel ühtegi akent pole suletud.
               </p>
-            </>
-          )}
+            ) : (
+              <ul className="mt-3 divide-y divide-border-default">
+                {data.closedWindows.map((window) => (
+                  <ClosedWindowRow key={window.code} window={window} />
+                ))}
+              </ul>
+            )}
+          </Card>
         </section>
 
-        <section aria-labelledby="cross-tournament" className="rounded border p-4">
-          <h2 id="cross-tournament" className="text-lg font-medium">
-            {data.greeting.groupName} läbi aegade
-          </h2>
-          {data.crossTournamentPreview.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-600">
-              Liiga ajalugu pole veel — kogume andmeid esimese turniiri jooksul.
-            </p>
-          ) : (
-            <>
-              <ol className="mt-2 space-y-1 text-sm">
-                {data.crossTournamentPreview.map((row, index) => (
-                  <li
-                    key={row.userId}
-                    className="flex flex-wrap items-baseline justify-between gap-2"
-                  >
-                    <span>
-                      <span className="tabular-nums text-gray-500">{index + 1}.</span>{' '}
-                      <strong>{row.username}</strong>
-                    </span>
-                    <span className="tabular-nums text-gray-700">{row.totalPoints} p</span>
-                  </li>
-                ))}
-              </ol>
-              <p className="mt-3 text-sm">
-                <Link href="/group/cross-tournament" className="text-blue-700 hover:underline">
-                  Vaata terviktabelit →
-                </Link>
+        {/* 2-up: Sinu ajalugu + Cross-tournament podium */}
+        <section
+          aria-label="Ajalugu ja liiga koondtabel"
+          className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+        >
+          {/* Sinu ajalugu with watermark */}
+          <Card className="relative overflow-hidden p-5">
+            <Trophy
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-4 -bottom-4 h-40 w-40 text-text-primary opacity-5"
+              strokeWidth={1}
+            />
+            <div className="relative">
+              <SectionHeader icon={Trophy} title="Sinu ajalugu" />
+              {data.legacyPreview.length === 0 ? (
+                <p className="mt-3 text-sm text-text-muted">
+                  Esimene turniir — kogu ajalugu algab siit.
+                </p>
+              ) : (
+                <>
+                  <ul className="mt-3 divide-y divide-border-default">
+                    {data.legacyPreview.map((row) => (
+                      <HistoryRow key={row.tournamentCode} row={row} />
+                    ))}
+                  </ul>
+                  <p className="mt-4 text-sm">
+                    <Link
+                      href="/me/history"
+                      className="font-medium text-brand-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 rounded-sm"
+                    >
+                      Vaata kogu ajalugu →
+                    </Link>
+                  </p>
+                </>
+              )}
+            </div>
+          </Card>
+
+          {/* Cross-tournament podium */}
+          <Card className="p-5">
+            <SectionHeader
+              icon={Crown}
+              title={`${data.greeting.groupName} läbi aegade`}
+            />
+            {data.crossTournamentPreview.length === 0 ? (
+              <p className="mt-3 text-sm text-text-muted">
+                Liiga ajalugu pole veel — kogume andmeid esimese turniiri jooksul.
               </p>
-            </>
-          )}
+            ) : (
+              <>
+                <ol className="mt-3 space-y-1">
+                  {data.crossTournamentPreview.map((row, idx) => (
+                    <PodiumRow key={row.userId} row={row} rank={idx + 1} />
+                  ))}
+                </ol>
+                <p className="mt-4 text-sm">
+                  <Link
+                    href="/group/cross-tournament"
+                    className="font-medium text-brand-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 rounded-sm"
+                  >
+                    Vaata terviktabelit →
+                  </Link>
+                </p>
+              </>
+            )}
+          </Card>
         </section>
       </main>
     </>
-  );
-}
-
-function RoastTile() {
-  return (
-    <article className="rounded border border-amber-300 bg-amber-50 p-4">
-      <h3 className="text-base font-medium">🔥 Sinu WC2026 Roast on valmis</h3>
-      <p className="mt-1 text-sm text-amber-900">Loe oma parim ja halvim pakkumine.</p>
-      <p className="mt-3 text-sm">
-        <Link href="/roast" className="font-medium text-amber-900 underline">
-          Ava roast →
-        </Link>
-      </p>
-    </article>
-  );
-}
-
-function UpcomingWindowRow({ card }: { card: UpcomingWindowCard }) {
-  const now = new Date();
-  const relative = formatDeadlineRelative(card.opensAt, now);
-  const absolute = formatDeadlineAbsolute(card.opensAt);
-  return (
-    <li className="flex flex-wrap items-baseline justify-between gap-2">
-      <span>{card.labelEt}</span>
-      <span className="tabular-nums text-gray-700">
-        Avaneb {absolute}
-        {relative ? ` (${relative})` : ''}
-      </span>
-    </li>
-  );
-}
-
-function OpenWindowCardView({ card }: { card: OpenWindowCard }) {
-  const now = new Date();
-  const relative = formatDeadlineRelative(card.closesAt, now);
-  const absolute = formatDeadlineAbsolute(card.closesAt);
-  return (
-    <article className="rounded border border-green-300 bg-green-50 p-4">
-      <h3 className="text-base font-medium text-green-900">
-        🟢 {card.labelEt} — AVATUD
-      </h3>
-      <p className="mt-1 text-sm text-green-900">
-        Sulgub {absolute}
-        {relative ? ` (${relative})` : ''}.
-      </p>
-      <p className="mt-1 text-sm text-green-900">
-        Sinu seis: <strong>{card.progressLabel}</strong>.
-      </p>
-      <p className="mt-3 text-sm">
-        <Link href={card.ctaHref} className="font-medium text-green-900 underline">
-          Ennusta nüüd →
-        </Link>
-      </p>
-    </article>
   );
 }

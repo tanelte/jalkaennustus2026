@@ -1,6 +1,10 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { useActionState, useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { SubmitButton } from '@/components/submit-button';
 import { submitBestThirds, type SubmitBestThirdsState } from './actions';
 import { GROUP_LETTERS, REQUIRED_PICKS } from './constants';
 
@@ -17,11 +21,22 @@ const ERROR_COPY: Record<string, string> = {
   no_session: 'Logi sisse uuesti.',
 };
 
-export function BestThirdsForm({ initialPicks }: { initialPicks: readonly string[] }) {
+export interface BestThirdsFormProps {
+  initialPicks: readonly string[];
+  disabled?: boolean;
+  gateClosed?: boolean;
+}
+
+export function BestThirdsForm({
+  initialPicks,
+  disabled = false,
+  gateClosed = false,
+}: BestThirdsFormProps) {
   const [state, formAction, pending] = useActionState(submitBestThirds, initialState);
   const [selected, setSelected] = useState<Set<string>>(new Set(initialPicks));
 
   function toggle(letter: string) {
+    if (disabled) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(letter)) next.delete(letter);
@@ -31,19 +46,24 @@ export function BestThirdsForm({ initialPicks }: { initialPicks: readonly string
   }
 
   const count = selected.size;
-  const submittable = count === REQUIRED_PICKS && !pending;
 
   return (
-    <form action={formAction} className="mt-6 space-y-5" noValidate>
-      <div className="grid grid-cols-4 gap-3 sm:grid-cols-6" role="group" aria-label="Grupid">
+    <form action={formAction} className="space-y-5" noValidate>
+      <div
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        role="group"
+        aria-label="Grupid"
+      >
         {GROUP_LETTERS.map((letter) => {
           const checked = selected.has(letter);
           return (
             <label
               key={letter}
-              className={`flex cursor-pointer items-center justify-center rounded border px-3 py-3 text-lg font-semibold ${
-                checked ? 'border-black bg-black text-white' : 'border-gray-300 bg-white'
-              }`}
+              className={`relative flex h-16 cursor-pointer items-center justify-center rounded-lg border text-xl font-semibold transition-colors ${
+                checked
+                  ? 'border-brand-green bg-brand-green text-white shadow-sm'
+                  : 'border-border-default bg-surface-card text-text-primary hover:border-brand-green/40'
+              } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               <input
                 type="checkbox"
@@ -51,36 +71,55 @@ export function BestThirdsForm({ initialPicks }: { initialPicks: readonly string
                 value={letter}
                 checked={checked}
                 onChange={() => toggle(letter)}
+                disabled={disabled}
                 className="sr-only"
               />
               <span>{letter}</span>
+              {checked && (
+                <Check
+                  aria-hidden="true"
+                  className="absolute right-1.5 top-1.5 h-3.5 w-3.5"
+                />
+              )}
             </label>
           );
         })}
       </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
-        Valitud: <strong>{count}</strong> / {REQUIRED_PICKS}
+      <p className="text-sm text-text-muted" aria-live="polite">
+        Valitud:{' '}
+        <strong className="text-text-primary">{count}</strong> / {REQUIRED_PICKS}
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
+        <p role="status" className="text-sm text-brand-green">
           Ennustus salvestatud.
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!submittable}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Salvestan…' : 'Salvesta valikud'}
-      </button>
+      <div className="flex justify-end pt-2">
+        {gateClosed ? (
+          <Badge
+            variant="outline"
+            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+          >
+            Suletud
+          </Badge>
+        ) : (
+          <SubmitButton
+            pendingOverride={pending}
+            disabled={count !== REQUIRED_PICKS}
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            Salvesta valikud
+          </SubmitButton>
+        )}
+      </div>
     </form>
   );
 }

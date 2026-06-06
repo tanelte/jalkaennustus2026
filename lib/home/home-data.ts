@@ -12,6 +12,7 @@ import { getPlayerHistory } from '@/lib/me/history/queries';
 import { isFinalEnded as isFinalEndedDb } from '@/lib/roast/queries';
 import { users } from '@/db/schema';
 import {
+  getClosedStages,
   getOpenStages,
   getUpcomingStages,
   type StageCode,
@@ -35,7 +36,22 @@ export interface OpenWindowCard {
 export interface UpcomingWindowCard {
   code: StageCode;
   labelEt: string;
+  ctaHref: string;
   opensAt: Date;
+}
+
+/**
+ * Stage whose prediction window has already closed. The surface stays
+ * reachable in read-only mode via `ctaHref`; the home dashboard renders one
+ * of these rows in the "Suletud aknad" card per UX spec §6 follow-up.
+ */
+export interface ClosedWindowCard {
+  code: StageCode;
+  labelEt: string;
+  ctaHref: string;
+  closesAt: Date;
+  progress: StageProgress;
+  progressLabel: string;
 }
 
 export interface LegacyHistoryRow {
@@ -60,6 +76,7 @@ export interface HomeData {
   greeting: { playerName: string; groupName: string };
   openWindows: OpenWindowCard[];
   upcomingWindows: UpcomingWindowCard[];
+  closedWindows: ClosedWindowCard[];
   roastUnlocked: boolean;
   currentScore: CurrentScore;
   legacyPreview: LegacyHistoryRow[];
@@ -92,6 +109,7 @@ export interface HomeDataDeps {
   loadPlayerName: (userId: string) => Promise<string>;
   loadOpenStages: (tournamentId: string) => Promise<StageRow[]>;
   loadUpcomingStages: (tournamentId: string) => Promise<StageRow[]>;
+  loadClosedStages: (tournamentId: string) => Promise<StageRow[]>;
   loadStageProgress: (
     code: StageCode,
     userId: string,
@@ -125,6 +143,7 @@ export async function getHomeData(
     playerName,
     openStageRows,
     upcomingStageRows,
+    closedStageRows,
     roastUnlocked,
     currentScore,
     legacyPreview,
@@ -133,6 +152,7 @@ export async function getHomeData(
     deps.loadPlayerName(input.userId),
     deps.loadOpenStages(input.tournamentId),
     deps.loadUpcomingStages(input.tournamentId),
+    deps.loadClosedStages(input.tournamentId),
     deps.isFinalEnded(input.tournamentId),
     deps.loadCurrentScore(input.userId, input.groupId, input.tournamentId),
     deps.loadLegacyPreview(input.userId, input.groupId),
@@ -156,13 +176,29 @@ export async function getHomeData(
   const upcomingWindows: UpcomingWindowCard[] = upcomingStageRows.map((row) => ({
     code: row.code,
     labelEt: STAGE_LABEL_ET[row.code],
+    ctaHref: STAGE_CTA_HREF[row.code],
     opensAt: row.opens_at,
   }));
+
+  const closedWindows = await Promise.all(
+    closedStageRows.map(async (row): Promise<ClosedWindowCard> => {
+      const progress = await deps.loadStageProgress(row.code, input.userId, input.tournamentId);
+      return {
+        code: row.code,
+        labelEt: STAGE_LABEL_ET[row.code],
+        ctaHref: STAGE_CTA_HREF[row.code],
+        closesAt: row.closes_at,
+        progress,
+        progressLabel: formatProgress(progress),
+      };
+    }),
+  );
 
   return {
     greeting: { playerName, groupName: input.groupName },
     openWindows,
     upcomingWindows,
+    closedWindows,
     roastUnlocked,
     currentScore,
     legacyPreview,
@@ -243,6 +279,7 @@ const defaultDeps: HomeDataDeps = {
   loadPlayerName: loadPlayerNameDb,
   loadOpenStages: (tournamentId) => getOpenStages(tournamentId),
   loadUpcomingStages: (tournamentId) => getUpcomingStages(tournamentId),
+  loadClosedStages: (tournamentId) => getClosedStages(tournamentId),
   loadStageProgress: (code, userId, tournamentId) =>
     getStageProgress(code, userId, tournamentId),
   isFinalEnded: isFinalEndedDb,

@@ -1,6 +1,10 @@
 'use client';
 
+import { Medal } from 'lucide-react';
 import { startTransition, useActionState, useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { SubmitButton } from '@/components/submit-button';
 import { submitFinalPicks, type SubmitFinalPicksState } from './actions';
 import {
   FINAL_SLOT_LABELS_ET,
@@ -26,11 +30,19 @@ const ERROR_COPY: Record<string, string> = {
   stage_not_found: 'Finaali etappi ei leitud — võta ühendust korraldajaga.',
 };
 
+const MEDAL_TONE: Record<FinalSlot, string> = {
+  F1: 'text-yellow-500',
+  F2: 'text-gray-400',
+  F3: 'text-amber-700',
+  F4: 'text-text-muted',
+};
+
 export interface FinalFormProps {
   candidates: readonly CandidateTeamView[];
   initialPicks: Partial<Record<FinalSlot, string>>;
   slotsOrder: readonly FinalSlot[];
   disabled: boolean;
+  gateClosed?: boolean;
 }
 
 export function FinalForm({
@@ -38,6 +50,7 @@ export function FinalForm({
   initialPicks,
   slotsOrder,
   disabled,
+  gateClosed = false,
 }: FinalFormProps) {
   const [state, formAction, pending] = useActionState(submitFinalPicks, initialState);
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
@@ -48,7 +61,6 @@ export function FinalForm({
 
   const filledCount = slotsOrder.filter((s) => picks[s]).length;
   const allFilled = filledCount === slotsOrder.length;
-  const submittable = allFilled && !disabled && !pending;
 
   return (
     <form
@@ -62,15 +74,25 @@ export function FinalForm({
         // sidesteps that reset while keeping useActionState's `pending` accurate.
         startTransition(() => formAction(formData));
       }}
-      className="mt-6 space-y-5"
+      className="space-y-5"
       noValidate
     >
       <div className="space-y-3">
         {slotsOrder.map((slot) => {
           const inputId = `${FORM_FIELD_PREFIX}${slot}`;
           return (
-            <div key={slot} className="flex flex-col gap-2 rounded border bg-white p-3">
-              <label htmlFor={inputId} className="text-sm font-medium text-gray-900">
+            <div
+              key={slot}
+              className="flex flex-col gap-2 rounded-lg border border-border-default bg-surface-card p-4"
+            >
+              <label
+                htmlFor={inputId}
+                className="flex items-center gap-2 text-sm font-medium text-text-primary"
+              >
+                <Medal
+                  aria-hidden="true"
+                  className={`h-4 w-4 ${MEDAL_TONE[slot]}`}
+                />
                 {FINAL_SLOT_LABELS_ET[slot]}
               </label>
               <select
@@ -79,7 +101,7 @@ export function FinalForm({
                 value={picks[slot] ?? ''}
                 disabled={disabled}
                 onChange={(e) => onPick(slot, e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                className="rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">— vali meeskond —</option>
                 {candidates.map((team) => (
@@ -93,31 +115,42 @@ export function FinalForm({
         })}
       </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
+      <p className="text-sm text-text-muted" aria-live="polite">
         Valitud:{' '}
-        <strong>
+        <strong className="text-text-primary">
           {filledCount} / {slotsOrder.length}
         </strong>
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
+        <p role="status" className="text-sm text-brand-green">
           Ennustus salvestatud.
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!submittable}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Salvestan…' : 'Salvesta valikud'}
-      </button>
+      <div className="flex justify-end pt-2">
+        {gateClosed ? (
+          <Badge
+            variant="outline"
+            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+          >
+            Suletud
+          </Badge>
+        ) : (
+          <SubmitButton
+            pendingOverride={pending}
+            disabled={!allFilled}
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            Salvesta valikud
+          </SubmitButton>
+        )}
+      </div>
     </form>
   );
 }

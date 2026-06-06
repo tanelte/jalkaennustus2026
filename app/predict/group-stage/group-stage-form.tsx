@@ -1,6 +1,10 @@
 'use client';
 
+import { ChevronDown } from 'lucide-react';
 import { useActionState, useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { SubmitButton } from '@/components/submit-button';
 import {
   submitGroupStagePredictions,
   type SubmitGroupStagePredictionsState,
@@ -73,6 +77,12 @@ function teamLabelForCode(
   return `${team.name_et} võit ${margin}`;
 }
 
+// Tight secondary caption for the chip: margin only (full label is in aria).
+function shortCaptionForCode(code: GroupStagePredictionCode): string {
+  if (code === 'X') return 'viik';
+  return code[1] === 'A' ? '1–2' : '3+';
+}
+
 interface MatchRowProps {
   match: GroupStageMatchView;
   pick: GroupStagePredictionCode | null;
@@ -84,35 +94,47 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
   const { homeTeam, awayTeam, result } = match;
 
   return (
-    <fieldset className="rounded border bg-white p-3" disabled={disabled}>
-      <legend className="flex flex-wrap items-center gap-2 px-1 text-xs uppercase tracking-wide text-gray-500">
+    <fieldset
+      className="rounded-lg border border-border-default bg-surface-card p-3"
+      disabled={disabled}
+    >
+      <legend className="flex flex-wrap items-center gap-2 px-1 text-xs uppercase tracking-wide text-text-muted">
         <span>
           {match.roundLabel} — {formatKickoff(match.kickoffAt)}
         </span>
         {match.doublePoints && (
-          <span
-            className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900"
+          <Badge
+            variant="outline"
+            className="border-amber-300 bg-amber-50 px-2 py-0 text-[10px] font-semibold text-amber-900"
             aria-label="topeltpunktid"
           >
             2×
-          </span>
+          </Badge>
         )}
       </legend>
 
-      <div className="text-sm font-medium text-gray-900">
-        {homeTeam.name_et} <span className="text-gray-400">vs</span> {awayTeam.name_et}
+      <div className="text-sm font-medium text-text-primary">
+        {homeTeam.name_et}{' '}
+        <span className="text-text-muted">vs</span> {awayTeam.name_et}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-5">
+      <div
+        className="mt-3 grid grid-cols-5 gap-1 text-sm"
+        role="radiogroup"
+        aria-label={`${homeTeam.name_et} vs ${awayTeam.name_et}`}
+      >
         {GROUP_STAGE_PREDICTION_CODES.map((code) => {
           const checked = pick === code;
+          const fullLabel = teamLabelForCode(code, homeTeam, awayTeam);
           return (
             <label
               key={code}
-              className={`flex cursor-pointer items-center justify-center rounded border px-2 py-1 text-center ${
+              title={fullLabel}
+              aria-label={fullLabel}
+              className={`flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-md border px-1 py-1.5 text-center transition-colors ${
                 checked
-                  ? 'border-black bg-black text-white'
-                  : 'border-gray-300 bg-white text-gray-900'
+                  ? 'border-brand-green bg-brand-green text-white'
+                  : 'border-border-default bg-surface-card text-text-body hover:border-brand-green/40'
               }`}
             >
               <input
@@ -123,7 +145,16 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
                 onChange={() => onPick(match.id, code)}
                 className="sr-only"
               />
-              <span>{teamLabelForCode(code, homeTeam, awayTeam)}</span>
+              <span className="text-sm font-bold leading-none tabular-nums">
+                {code}
+              </span>
+              <span
+                className={`mt-0.5 text-[10px] leading-tight ${
+                  checked ? 'text-white/85' : 'text-text-muted'
+                }`}
+              >
+                {shortCaptionForCode(code)}
+              </span>
               <span className="sr-only">{GROUP_STAGE_OPTION_MODE_LABELS[code]}</span>
             </label>
           );
@@ -131,17 +162,18 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
       </div>
 
       {result && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-200 pt-2 text-sm text-gray-700">
-          <span className="font-medium text-gray-900">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-default pt-2 text-sm text-text-body">
+          <span className="font-medium text-text-primary">
             Tulemus: {result.scoreHome ?? '?'} – {result.scoreAway ?? '?'}
           </span>
           {result.points !== null && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            <Badge
+              variant="outline"
+              className={
                 result.points > 0
-                  ? 'bg-green-50 text-green-900'
-                  : 'bg-gray-100 text-gray-700'
-              }`}
+                  ? 'border-brand-green/30 bg-brand-green-soft text-brand-green'
+                  : 'border-border-default bg-bg-app text-text-muted'
+              }
             >
               {result.points > 0 ? '+' : ''}
               {result.points}p
@@ -150,7 +182,7 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
                   (2×)
                 </span>
               )}
-            </span>
+            </Badge>
           )}
         </div>
       )}
@@ -161,9 +193,14 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
 export interface GroupStageFormProps {
   matches: readonly GroupStageMatchView[];
   disabled: boolean;
+  gateClosed?: boolean;
 }
 
-export function GroupStageForm({ matches, disabled }: GroupStageFormProps) {
+export function GroupStageForm({
+  matches,
+  disabled,
+  gateClosed = false,
+}: GroupStageFormProps) {
   const [state, formAction, pending] = useActionState(
     submitGroupStagePredictions,
     initialState,
@@ -191,55 +228,80 @@ export function GroupStageForm({ matches, disabled }: GroupStageFormProps) {
   const pickedCount = Object.keys(picks).length;
 
   return (
-    <form action={formAction} className="mt-6 space-y-6" noValidate>
-      {GROUP_LETTERS.map((letter) => {
-        const groupMatches = matchesByLetter.get(letter) ?? [];
-        if (groupMatches.length === 0) return null;
-        return (
-          <section key={letter} aria-labelledby={`group-${letter}-heading`}>
-            <h2
-              id={`group-${letter}-heading`}
-              className="text-lg font-semibold text-gray-900"
+    <form action={formAction} className="space-y-4" noValidate>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {GROUP_LETTERS.map((letter) => {
+          const groupMatches = matchesByLetter.get(letter) ?? [];
+          if (groupMatches.length === 0) return null;
+          const groupPicked = groupMatches.filter((m) => picks[m.id]).length;
+          return (
+            <details
+              key={letter}
+              open
+              className="group rounded-lg border border-border-default bg-surface-card"
             >
-              Grupp {letter}
-            </h2>
-            <div className="mt-2 space-y-2">
-              {groupMatches.map((m) => (
-                <MatchRow
-                  key={m.id}
-                  match={m}
-                  pick={picks[m.id] ?? null}
-                  onPick={onPick}
-                  disabled={disabled}
+              <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-text-primary marker:hidden hover:bg-bg-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                <span>
+                  Grupp {letter}{' '}
+                  <span className="ml-1 text-xs font-normal text-text-muted">
+                    ({groupPicked} / {groupMatches.length})
+                  </span>
+                </span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="h-4 w-4 text-text-muted transition-transform group-open:rotate-180"
                 />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+              </summary>
+              <div className="space-y-2 border-t border-border-default px-3 py-3">
+                {groupMatches.map((m) => (
+                  <MatchRow
+                    key={m.id}
+                    match={m}
+                    pick={picks[m.id] ?? null}
+                    onPick={onPick}
+                    disabled={disabled}
+                  />
+                ))}
+              </div>
+            </details>
+          );
+        })}
+      </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
-        Esitatud: <strong>{pickedCount}</strong> / {totalCount}
+      <p className="text-sm text-text-muted" aria-live="polite">
+        Esitatud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
+        / {totalCount}
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
+        <p role="status" className="text-sm text-brand-green">
           Ennustus salvestatud ({state.picks_written ?? 0} mängu).
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={disabled || pending || pickedCount === 0}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Salvestan…' : 'Salvesta valikud'}
-      </button>
+      <div className="flex justify-end pt-2">
+        {gateClosed ? (
+          <Badge
+            variant="outline"
+            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+          >
+            Suletud
+          </Badge>
+        ) : (
+          <SubmitButton
+            pendingOverride={pending}
+            disabled={pickedCount === 0}
+            className="bg-brand-green hover:bg-brand-green-hover"
+          >
+            Salvesta valikud
+          </SubmitButton>
+        )}
+      </div>
     </form>
   );
 }

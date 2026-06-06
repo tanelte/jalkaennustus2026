@@ -1,16 +1,25 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { eq } from 'drizzle-orm';
 import type { ReactNode } from 'react';
-import { auth } from '@/lib/auth';
-import { getCurrentUserId } from '@/lib/current-user';
+
+import { AdminModeBanner } from '@/components/admin-mode-banner';
+import { TopBar } from '@/components/top-bar';
+import { auth, signOut } from '@/lib/auth';
+import { clearCurrentUserCookie, getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
 import { log } from '@/lib/log';
 import { checkOperator } from '@/lib/operator/require-operator';
+import { resolveTournamentCode } from '@/lib/tournaments/current';
 import { users } from '@/db/schema';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Operaatori vaade — Jalkaennustus' };
+
+async function logoutAction() {
+  'use server';
+  await clearCurrentUserCookie();
+  await signOut({ redirectTo: '/login' });
+}
 
 async function loadUsername(userId: string): Promise<string | null> {
   const rows = await db
@@ -43,46 +52,21 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   }
 
   const operatorUsername = currentUserId ? await loadUsername(currentUserId) : null;
+  const tournamentChip = resolveTournamentCode();
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-        <div>
-          <Link href="/" className="text-sm text-gray-500 hover:underline">
-            ← Tagasi
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold">Operaatori vaade</h1>
-        </div>
-        <div className="text-sm text-gray-700">
-          <span>
-            Ennustab:{' '}
-            <strong>{operatorUsername ?? '—'}</strong>{' '}
-            <Link href="/select-user" className="underline">
-              [vaheta mängijat]
-            </Link>
-          </span>
-        </div>
-      </header>
-
-      <nav className="mt-4 flex gap-4 text-sm" aria-label="Operaatori menüü">
-        <Link href="/admin" className="underline">
-          Avaleht
-        </Link>
-        <Link href="/admin/matches" className="underline">
-          Mängude tulemused
-        </Link>
-        <Link href="/admin/best-thirds" className="underline">
-          Best-thirds kinnitus
-        </Link>
-        <Link href="/admin/finals" className="underline">
-          Finaali kinnitus
-        </Link>
-        <Link href="/admin/trivia" className="underline">
-          Trivia kinnitus
-        </Link>
-      </nav>
-
-      <section className="mt-6">{children}</section>
-    </main>
+    <>
+      <TopBar
+        groupName={session.user.username}
+        playerName={operatorUsername}
+        isOperator={true}
+        tournamentChip={tournamentChip}
+        logoutAction={logoutAction}
+      />
+      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        <AdminModeBanner />
+        {children}
+      </main>
+    </>
   );
 }

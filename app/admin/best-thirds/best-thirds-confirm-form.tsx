@@ -1,6 +1,9 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { useActionState, useState } from 'react';
+
+import { SubmitButton } from '@/components/submit-button';
 import { confirmBestThirds, type ConfirmBestThirdsState } from './actions';
 import {
   GROUP_LETTERS,
@@ -40,15 +43,21 @@ export function BestThirdsConfirmForm({
   const submittable = count <= REQUIRED_PICKS && !pending;
 
   return (
-    <form action={formAction} className="mt-4 space-y-4" noValidate>
-      <div className="grid grid-cols-4 gap-3 sm:grid-cols-6" role="group" aria-label="Grupid">
+    <form action={formAction} className="space-y-5" noValidate>
+      <div
+        className="grid grid-cols-4 gap-3 sm:grid-cols-6"
+        role="group"
+        aria-label="Grupid"
+      >
         {GROUP_LETTERS.map((letter) => {
           const checked = selected.has(letter);
           return (
             <label
               key={letter}
-              className={`flex cursor-pointer items-center justify-center rounded border px-3 py-3 text-lg font-semibold ${
-                checked ? 'border-black bg-black text-white' : 'border-gray-300 bg-white'
+              className={`relative flex h-16 cursor-pointer items-center justify-center rounded-lg border text-xl font-semibold transition-colors ${
+                checked
+                  ? 'border-brand-green bg-brand-green text-white shadow-sm'
+                  : 'border-border-default bg-surface-card text-text-primary hover:border-brand-green/40'
               }`}
             >
               <input
@@ -60,42 +69,50 @@ export function BestThirdsConfirmForm({
                 className="sr-only"
               />
               <span>{letter}</span>
+              {checked && (
+                <Check
+                  aria-hidden="true"
+                  className="absolute right-1.5 top-1.5 h-3.5 w-3.5"
+                />
+              )}
             </label>
           );
         })}
       </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
-        Valitud: <strong>{count}</strong> / {REQUIRED_PICKS}
+      <p className="text-sm text-text-muted" aria-live="polite">
+        Valitud:{' '}
+        <strong className="text-text-primary">{count}</strong> / {REQUIRED_PICKS}
         {count < REQUIRED_PICKS && (
-          <span className="ml-2 text-gray-500">
+          <span className="ml-2 text-text-muted">
             (saad salvestada ka osalise komplekti)
           </span>
         )}
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
-          Salvestatud. Ümber arvutatud ennustusi: <strong>{state.rescored ?? 0}</strong>.
+        <p role="status" className="text-sm text-brand-green">
+          Salvestatud. Ümber arvutatud ennustusi:{' '}
+          <strong className="text-text-primary">{state.rescored ?? 0}</strong>.
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!submittable}
-        className="rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending
-          ? 'Salvestan…'
-          : count === REQUIRED_PICKS
-          ? 'Kinnita ametlik komplekt'
-          : `Salvesta (${count}/${REQUIRED_PICKS})`}
-      </button>
+      <div className="flex justify-end pt-2">
+        <SubmitButton
+          pendingOverride={pending}
+          disabled={!submittable}
+          className="bg-brand-green hover:bg-brand-green-hover"
+        >
+          {count === REQUIRED_PICKS
+            ? 'Kinnita ametlik komplekt'
+            : `Salvesta (${count}/${REQUIRED_PICKS})`}
+        </SubmitButton>
+      </div>
     </form>
   );
 }

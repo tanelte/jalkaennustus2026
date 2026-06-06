@@ -6,6 +6,7 @@ function makeDeps(overrides: Partial<HomeDataDeps> = {}): HomeDataDeps {
     loadPlayerName: vi.fn(async () => 'Mart'),
     loadOpenStages: vi.fn(async () => []),
     loadUpcomingStages: vi.fn(async () => []),
+    loadClosedStages: vi.fn(async () => []),
     loadStageProgress: vi.fn(async () => ({
       submitted: 0,
       expected: 8,
@@ -63,11 +64,13 @@ describe('getHomeData', () => {
       {
         code: 'best_thirds',
         labelEt: '8 parima kolmanda valik',
+        ctaHref: '/predict/best-thirds',
         opensAt: new Date('2026-06-25T18:00:00Z'),
       },
       {
         code: 'final',
         labelEt: 'Finaali ennustus (F1/F2/F3/F4)',
+        ctaHref: '/predict/final',
         opensAt: new Date('2026-07-19T16:00:00Z'),
       },
     ]);

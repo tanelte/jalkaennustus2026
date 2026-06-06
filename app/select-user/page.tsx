@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { user_groups, users } from '@/db/schema';
+import { Card, CardContent } from '@/components/ui/card';
 import { SelectUserForms } from './select-user-forms';
 
 export const dynamic = 'force-dynamic';
@@ -23,15 +24,22 @@ export default async function SelectUserPage() {
     redirect('/login');
   }
   const groupUsers = await listUsersInGroup(session.user.group_id);
+  const groupName = session.user.username;
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-semibold">Vali kasutaja</h1>
-      <p className="mt-2 text-sm text-gray-600">
-        Grupp: <strong>{session.user.username}</strong>. Vali olemasolev kasutaja või
-        loo uus, et hakata ennustama.
-      </p>
-      <SelectUserForms users={groupUsers} />
+    <main className="min-h-screen bg-bg-app">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-12">
+        <Card>
+          <CardContent className="space-y-6 p-8">
+            <div className="space-y-2 text-center">
+              <h1 className="text-2xl font-semibold text-text-primary">
+                Tere tulemast, {groupName}!
+              </h1>
+            </div>
+            <SelectUserForms users={groupUsers} />
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
