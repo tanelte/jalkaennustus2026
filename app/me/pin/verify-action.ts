@@ -9,6 +9,11 @@ import { db } from '@/lib/db';
 import { log } from '@/lib/log';
 import { addUnlock, PIN_UNLOCK_TTL_MS } from '@/lib/pin/cookie';
 import { verifyPin } from '@/lib/pin/hash';
+import {
+  isPinRateLimited,
+  recordPinFailure,
+  resetPinRateLimit,
+} from '@/lib/pin/rate-limit';
 import { isValidPin } from '@/lib/pin/validate';
 import { users } from '@/db/schema';
 
@@ -25,15 +30,16 @@ export interface VerifyPinState {
 }
 
 /**
- * E03 S02 — verify a PIN entered in the modal. On success, write a 30-minute
- * sliding unlock entry for this user into the signed `pin_unlocked` cookie.
- *
- * `pin_rate_limited` is reachable from S06 — this story never emits it, but it
- * lives in the error union so the modal's ERROR_COPY can carry the matching
- * Estonian copy and S06 only needs to wire the bucket.
+ * E03 S02 + S06 — verify a PIN entered in the modal. On success, write a
+ * 30-minute sliding unlock entry for this user into the signed `pin_unlocked`
+ * cookie. S06 layers a token-bucket rate-limit (5 fails / 15 min per
+ * `pin:{group_id}:{user_id}`) on top: peek before bcrypt, increment on every
+ * failed attempt, reset on success. No permanent lockout — `Forgot your PIN?`
+ * remains reachable in the modal.
  *
  * Malformed and wrong PINs both surface `wrong_pin` — we don't leak whether
- * the value-shape was even valid.
+ * the value-shape was even valid. Both also count against the rate-limit
+ * bucket so a brute-forcer cannot dodge the limit with junk inputs.
  */
 export async function verifyPinAction(
   _prev: VerifyPinState,
@@ -54,6 +60,14 @@ export async function verifyPinAction(
       group_id: session.user.group_id,
     });
     return { error: 'no_user' };
+  }
+
+  // S06 — rate-limit gate. Check BEFORE loading the hash or running bcrypt so
+  // a saturated bucket short-circuits the expensive path. Key shape per
+  // architecture D6: `pin:{group_id}:{user_id}`.
+  const rateLimitArgs = { groupId: session.user.group_id, userId };
+  if (isPinRateLimited(rateLimitArgs)) {
+    return { error: 'pin_rate_limited' };
   }
 
   const rows = await db
@@ -87,8 +101,10 @@ export async function verifyPinAction(
   const rawValue = formData.get('pin');
   const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
 
-  // Treat malformed and wrong the same way — no shape-leak.
+  // Treat malformed and wrong the same way — no shape-leak. Both increment
+  // the rate-limit bucket so a brute-forcer can't dodge it with junk inputs.
   if (!isValidPin(raw)) {
+    recordPinFailure(rateLimitArgs);
     log.warn({
       operation: 'pin_verify',
       outcome: 'rejected',
@@ -101,6 +117,7 @@ export async function verifyPinAction(
 
   const ok = await verifyPin(raw, row.pin_hash);
   if (!ok) {
+    recordPinFailure(rateLimitArgs);
     log.warn({
       operation: 'pin_verify',
       outcome: 'rejected',
@@ -111,6 +128,7 @@ export async function verifyPinAction(
     return { error: 'wrong_pin' };
   }
 
+  resetPinRateLimit(rateLimitArgs);
   await addUnlock(userId, PIN_UNLOCK_TTL_MS);
   revalidatePath('/me');
 
