@@ -1,21 +1,19 @@
 'use client';
 
 import { KeyRound } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
-import { SubmitButton } from '@/components/submit-button';
+import { SaveStatusIndicator } from '@/components/save-status-indicator';
+import { useAutoSave } from '@/lib/hooks/use-autosave';
 import type { EditMode } from '@/lib/pin/edit-mode';
 import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payloads';
-import {
-  submitKnockoutPicks,
-  type SubmitKnockoutPicksState,
-} from './actions';
+import { saveKnockoutPick } from './actions';
 import type { KnockoutPredictionCode, KnockoutRound } from './constants';
 
 export interface KnockoutTeamView {
@@ -33,8 +31,6 @@ export interface KnockoutMatchView {
   currentPrediction: string | null;
 }
 
-const initialState: SubmitKnockoutPicksState = {};
-
 const ERROR_COPY: Record<string, string> = {
   no_session: 'Logi sisse uuesti.',
   no_user: 'Vali kõigepealt mängija.',
@@ -50,6 +46,7 @@ const ERROR_COPY: Record<string, string> = {
     'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
+  network_error: 'Võrguviga — proovi uuesti.',
 };
 
 const OPTION_LABELS: Record<KnockoutPredictionCode, string> = {
@@ -61,9 +58,6 @@ const OPTION_LABELS: Record<KnockoutPredictionCode, string> = {
 
 function formatKickoff(iso: string): string {
   const d = new Date(iso);
-  // Local-ish display in Estonian DD.MM HH:mm. The server-rendered string is
-  // hydration-safe because we pass the ISO string through and let the client
-  // format identically.
   const dd = String(d.getUTCDate()).padStart(2, '0');
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const hh = String(d.getUTCHours()).padStart(2, '0');
@@ -80,13 +74,6 @@ interface MatchRowProps {
   groupName: string;
 }
 
-/**
- * Renders one peer's team-pick chip inside the popover. Mirrors the styling
- * of the form's own selected team-pick chip (brand-green pill) — but at the
- * popover's smaller scale, so it sits naturally beside the peer's name.
- *
- * S04 AC: "the team they picked to advance from that pair is shown".
- */
 function renderKnockoutPick(payload: KnockoutPeerPick) {
   return (
     <span className="inline-flex items-center rounded-md border border-brand-green/30 bg-brand-green-soft px-2 py-0.5 text-xs font-medium text-brand-green">
@@ -153,8 +140,6 @@ function MatchRow({
         >
           {(['1A', '1B', '2A', '2B'] as const).map((code) => {
             const checked = pick === code;
-            // Substitute the team name into the legend so the options are
-            // unambiguous: "Brasiilia — normaalaeg".
             const teamLabel =
               code[0] === '1' ? match.homeTeam!.name_et : match.awayTeam!.name_et;
             const mode = code[1] === 'A' ? 'normaalaeg' : 'lisaaeg / penaltid';
@@ -214,10 +199,6 @@ export function KnockoutForm({
   groupName,
   peerRowsBySlotKey,
 }: KnockoutFormProps) {
-  const [state, formAction, pending] = useActionState(
-    submitKnockoutPicks,
-    initialState,
-  );
   const [picks, setPicks] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
     for (const m of matches) {
@@ -226,21 +207,38 @@ export function KnockoutForm({
     return seed;
   });
   const [pinModalOpen, setPinModalOpen] = useState(false);
+  const autosave = useAutoSave();
 
   const disabled = mode !== 'edit';
 
   function onPick(gameId: string, code: KnockoutPredictionCode) {
     setPicks((prev) => ({ ...prev, [gameId]: code }));
+    autosave.schedule(`pick:${gameId}`, () =>
+      saveKnockoutPick(round, gameId, code),
+    );
   }
 
   const totalPickable = matches.filter(
     (m) => m.homeTeam !== null && m.awayTeam !== null,
   ).length;
   const pickedCount = Object.keys(picks).length;
+  const errorMessage = autosave.errorCode
+    ? ERROR_COPY[autosave.errorCode] ?? null
+    : null;
 
   return (
-    <form action={formAction} className="space-y-3" noValidate>
-      <input type="hidden" name="round" value={round} />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-text-muted" aria-live="polite">
+          Valitud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
+          / {totalPickable}
+        </p>
+        <SaveStatusIndicator
+          status={autosave.status}
+          lastSavedAt={autosave.lastSavedAt}
+          errorMessage={errorMessage}
+        />
+      </div>
 
       <div className="space-y-3">
         {matches.map((m) => (
@@ -256,56 +254,35 @@ export function KnockoutForm({
         ))}
       </div>
 
-      <p className="text-sm text-text-muted" aria-live="polite">
-        Valitud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
-        / {totalPickable}
-      </p>
-
-      {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-state-closed-text">
-          {ERROR_COPY[state.error]}
-        </p>
+      {mode !== 'edit' && (
+        <div className="flex justify-end pt-2">
+          {mode === 'closed' ? (
+            <Badge
+              variant="outline"
+              className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+            >
+              Suletud
+            </Badge>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => setPinModalOpen(true)}
+              aria-label="Sisesta PIN, et alustada muutmist"
+              className="bg-brand-green hover:bg-brand-green-hover"
+            >
+              <KeyRound aria-hidden="true" />
+              Muuda
+            </Button>
+          )}
+        </div>
       )}
-      {state.ok && (
-        <p role="status" className="text-sm text-brand-green">
-          Ennustus salvestatud.
-        </p>
-      )}
 
-      <div className="flex justify-end pt-2">
-        {mode === 'closed' ? (
-          <Badge
-            variant="outline"
-            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
-          >
-            Suletud
-          </Badge>
-        ) : mode === 'pending-unlock' ? (
-          <Button
-            type="button"
-            onClick={() => setPinModalOpen(true)}
-            aria-label="Sisesta PIN, et alustada muutmist"
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            <KeyRound aria-hidden="true" />
-            Muuda
-          </Button>
-        ) : (
-          <SubmitButton
-            pendingOverride={pending}
-            disabled={pickedCount === 0}
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            Salvesta valikud
-          </SubmitButton>
-        )}
-      </div>
       <PinEntryModal
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
         maskedRecoveryEmail={maskedRecoveryEmail}
       />
-    </form>
+    </div>
   );
 }

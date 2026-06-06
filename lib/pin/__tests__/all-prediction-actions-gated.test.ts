@@ -72,11 +72,11 @@ vi.mock('@/lib/db', () => {
 
 // --- Now import the actions under test (after the mocks above) --------------
 
-import { submitGroupStagePredictions } from '@/app/predict/group-stage/actions';
-import { submitTrivia } from '@/app/predict/trivia/actions';
-import { submitBestThirds } from '@/app/predict/best-thirds/actions';
-import { submitFinalPicks } from '@/app/predict/final/actions';
-import { submitKnockoutPicks } from '@/app/predict/knockout/[round]/actions';
+import { saveGroupStagePick } from '@/app/predict/group-stage/actions';
+import { saveTriviaAnswer } from '@/app/predict/trivia/actions';
+import { toggleBestThirdsLetter } from '@/app/predict/best-thirds/actions';
+import { saveFinalSlot } from '@/app/predict/final/actions';
+import { saveKnockoutPick } from '@/app/predict/knockout/[round]/actions';
 
 interface ActionCase {
   name: string;
@@ -85,50 +85,24 @@ interface ActionCase {
 
 const cases: ActionCase[] = [
   {
-    name: 'submitGroupStagePredictions',
-    invoke: () => {
-      const fd = new FormData();
-      fd.append('pick:game-1', '1A');
-      return submitGroupStagePredictions({}, fd);
-    },
+    name: 'saveGroupStagePick',
+    invoke: () => saveGroupStagePick('game-1', '1A'),
   },
   {
-    name: 'submitTrivia',
-    invoke: () => {
-      const fd = new FormData();
-      for (let i = 1; i <= 5; i++) fd.append(`answer_${i}`, 'placeholder');
-      return submitTrivia({}, fd);
-    },
+    name: 'saveTriviaAnswer',
+    invoke: () => saveTriviaAnswer(1, 'placeholder'),
   },
   {
-    name: 'submitBestThirds',
-    invoke: () => {
-      const fd = new FormData();
-      for (const letter of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) {
-        fd.append('letters', letter);
-      }
-      return submitBestThirds({}, fd);
-    },
+    name: 'toggleBestThirdsLetter',
+    invoke: () => toggleBestThirdsLetter('A', true),
   },
   {
-    name: 'submitFinalPicks',
-    invoke: () => {
-      const fd = new FormData();
-      fd.append('final_slot_F1', 't-1');
-      fd.append('final_slot_F2', 't-2');
-      fd.append('final_slot_F3', 't-3');
-      fd.append('final_slot_F4', 't-4');
-      return submitFinalPicks({}, fd);
-    },
+    name: 'saveFinalSlot',
+    invoke: () => saveFinalSlot('F1', 't-1'),
   },
   {
-    name: 'submitKnockoutPicks',
-    invoke: () => {
-      const fd = new FormData();
-      fd.append('round', 'r16');
-      fd.append('pick:game-1', '1A');
-      return submitKnockoutPicks({}, fd);
-    },
+    name: 'saveKnockoutPick',
+    invoke: () => saveKnockoutPick('r16', 'game-1', '1A'),
   },
 ];
 
@@ -146,17 +120,17 @@ describe('R-4 — every prediction-write action runs through the PIN guard', () 
     vi.restoreAllMocks();
   });
 
-  // Hard list — covers the entire prediction-write surface known to S02. If a
-  // new action lands without an entry here, the maintainer must update both
-  // the integration and this enumeration.
+  // Hard list — covers the entire prediction-write surface. If a new action
+  // lands without an entry here, the maintainer must update both the
+  // integration and this enumeration.
   it('covers exactly the documented set of actions', () => {
     expect(cases.map((c) => c.name).sort()).toEqual(
       [
-        'submitBestThirds',
-        'submitFinalPicks',
-        'submitGroupStagePredictions',
-        'submitKnockoutPicks',
-        'submitTrivia',
+        'saveGroupStagePick',
+        'saveTriviaAnswer',
+        'toggleBestThirdsLetter',
+        'saveFinalSlot',
+        'saveKnockoutPick',
       ].sort(),
     );
   });

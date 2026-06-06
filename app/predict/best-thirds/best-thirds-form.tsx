@@ -1,22 +1,19 @@
 'use client';
 
 import { Check, KeyRound } from 'lucide-react';
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
-import { SubmitButton } from '@/components/submit-button';
+import { SaveStatusIndicator } from '@/components/save-status-indicator';
+import { useAutoSave } from '@/lib/hooks/use-autosave';
 import type { EditMode } from '@/lib/pin/edit-mode';
-import { submitBestThirds, type SubmitBestThirdsState } from './actions';
+import { toggleBestThirdsLetter } from './actions';
 import { GROUP_LETTERS, REQUIRED_PICKS } from './constants';
 
-const initialState: SubmitBestThirdsState = {};
-
 const ERROR_COPY: Record<string, string> = {
-  invalid_count: 'Vali täpselt 8 gruppi.',
   invalid_letter: 'Üks valitud tähtedest ei kuulu gruppide A–L hulka.',
-  duplicate: 'Iga grupi tähte saab valida vaid ühe korra.',
   stage_closed: 'Best-thirds ennustuse aken on suletud.',
   stage_not_yet: 'Best-thirds ennustuse aken ei ole veel avatud.',
   stage_not_found: 'Best-thirds etappi ei leitud — võta ühendust korraldajaga.',
@@ -26,6 +23,7 @@ const ERROR_COPY: Record<string, string> = {
     'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
+  network_error: 'Võrguviga — proovi uuesti.',
 };
 
 export interface BestThirdsFormProps {
@@ -41,26 +39,48 @@ export function BestThirdsForm({
   userId,
   maskedRecoveryEmail,
 }: BestThirdsFormProps) {
-  const [state, formAction, pending] = useActionState(submitBestThirds, initialState);
   const [selected, setSelected] = useState<Set<string>>(new Set(initialPicks));
   const [pinModalOpen, setPinModalOpen] = useState(false);
+  const autosave = useAutoSave();
 
   const disabled = mode !== 'edit';
 
   function toggle(letter: string) {
     if (disabled) return;
+    const wasSelected = selected.has(letter);
+    // The UI cap is informational: prevent the user from over-picking past 8.
+    // The server itself accepts partial selections.
+    if (!wasSelected && selected.size >= REQUIRED_PICKS) return;
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(letter)) next.delete(letter);
-      else if (next.size < REQUIRED_PICKS) next.add(letter);
+      if (wasSelected) next.delete(letter);
+      else next.add(letter);
       return next;
     });
+    autosave.schedule(`letter:${letter}`, () =>
+      toggleBestThirdsLetter(letter, !wasSelected),
+    );
   }
 
   const count = selected.size;
+  const errorMessage = autosave.errorCode
+    ? ERROR_COPY[autosave.errorCode] ?? null
+    : null;
 
   return (
-    <form action={formAction} className="space-y-5" noValidate>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-text-muted" aria-live="polite">
+          Valitud:{' '}
+          <strong className="text-text-primary">{count}</strong> / {REQUIRED_PICKS}
+        </p>
+        <SaveStatusIndicator
+          status={autosave.status}
+          lastSavedAt={autosave.lastSavedAt}
+          errorMessage={errorMessage}
+        />
+      </div>
+
       <div
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         role="group"
@@ -98,56 +118,35 @@ export function BestThirdsForm({
         })}
       </div>
 
-      <p className="text-sm text-text-muted" aria-live="polite">
-        Valitud:{' '}
-        <strong className="text-text-primary">{count}</strong> / {REQUIRED_PICKS}
-      </p>
-
-      {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-state-closed-text">
-          {ERROR_COPY[state.error]}
-        </p>
+      {mode !== 'edit' && (
+        <div className="flex justify-end pt-2">
+          {mode === 'closed' ? (
+            <Badge
+              variant="outline"
+              className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+            >
+              Suletud
+            </Badge>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => setPinModalOpen(true)}
+              aria-label="Sisesta PIN, et alustada muutmist"
+              className="bg-brand-green hover:bg-brand-green-hover"
+            >
+              <KeyRound aria-hidden="true" />
+              Muuda
+            </Button>
+          )}
+        </div>
       )}
-      {state.ok && (
-        <p role="status" className="text-sm text-brand-green">
-          Ennustus salvestatud.
-        </p>
-      )}
 
-      <div className="flex justify-end pt-2">
-        {mode === 'closed' ? (
-          <Badge
-            variant="outline"
-            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
-          >
-            Suletud
-          </Badge>
-        ) : mode === 'pending-unlock' ? (
-          <Button
-            type="button"
-            onClick={() => setPinModalOpen(true)}
-            aria-label="Sisesta PIN, et alustada muutmist"
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            <KeyRound aria-hidden="true" />
-            Muuda
-          </Button>
-        ) : (
-          <SubmitButton
-            pendingOverride={pending}
-            disabled={count !== REQUIRED_PICKS}
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            Salvesta valikud
-          </SubmitButton>
-        )}
-      </div>
       <PinEntryModal
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
         maskedRecoveryEmail={maskedRecoveryEmail}
       />
-    </form>
+    </div>
   );
 }

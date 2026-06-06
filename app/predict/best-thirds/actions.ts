@@ -9,29 +9,35 @@ import { assertEditAllowedForUser } from '@/lib/pin/guard';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { user_best_thirds } from '@/db/schema';
-import { BEST_THIRDS_STAGE_CODE, GROUP_LETTERS, REQUIRED_PICKS } from './constants';
+import { BEST_THIRDS_STAGE_CODE, GROUP_LETTERS } from './constants';
 
 const VALID_LETTERS = new Set<string>(GROUP_LETTERS);
 
-export interface SubmitBestThirdsState {
-  error?:
-    | 'invalid_count'
-    | 'invalid_letter'
-    | 'duplicate'
-    | 'stage_closed'
-    | 'stage_not_yet'
-    | 'stage_not_found'
-    | 'no_user'
-    | 'no_session'
-    | 'pin_required'
-    | 'pin_rate_limited';
+export type ToggleBestThirdsLetterError =
+  | 'invalid_letter'
+  | 'stage_closed'
+  | 'stage_not_yet'
+  | 'stage_not_found'
+  | 'no_user'
+  | 'no_session'
+  | 'pin_required'
+  | 'pin_rate_limited';
+
+export interface ToggleBestThirdsLetterState {
   ok?: boolean;
+  error?: ToggleBestThirdsLetterError;
 }
 
-export async function submitBestThirds(
-  _prev: SubmitBestThirdsState,
-  formData: FormData,
-): Promise<SubmitBestThirdsState> {
+/**
+ * Per-letter toggle. `selected=true` inserts (idempotent), `selected=false`
+ * deletes. The UI may cap the visible selection at 8 for ergonomics, but the
+ * server itself accepts any subset of A–L — partial saves are fine; scoring
+ * applies to whatever rows exist at stage close.
+ */
+export async function toggleBestThirdsLetter(
+  letter: string,
+  selected: boolean,
+): Promise<ToggleBestThirdsLetterState> {
   const session = await auth();
   if (!session?.user?.group_id) {
     return { error: 'no_session' };
@@ -42,23 +48,15 @@ export async function submitBestThirds(
     return { error: 'no_user' };
   }
 
-  const submitted = formData.getAll('letters').map((v) => String(v));
-
-  if (submitted.length !== REQUIRED_PICKS) {
-    return { error: 'invalid_count' };
-  }
-  if (submitted.some((l) => !VALID_LETTERS.has(l))) {
+  if (!VALID_LETTERS.has(letter)) {
     return { error: 'invalid_letter' };
-  }
-  if (new Set(submitted).size !== REQUIRED_PICKS) {
-    return { error: 'duplicate' };
   }
 
   const tournamentId = await getCurrentTournamentId();
   const gate = await isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId);
   if (!gate.open) {
     log.warn({
-      operation: 'submit_best_thirds',
+      operation: 'toggle_best_thirds_letter',
       outcome: 'rejected',
       reason: `stage_${gate.reason}`,
       user_id: userId,
@@ -74,14 +72,14 @@ export async function submitBestThirds(
     };
   }
 
-  // E03 PIN guard — sits AFTER the stage gate and BEFORE the DB write.
+  // E03 PIN guard — sits AFTER the stage gate and BEFORE any DB write.
   const pinGate = await assertEditAllowedForUser({
     groupId: session.user.group_id,
     userId,
   });
   if (!pinGate.ok) {
     log.warn({
-      operation: 'submit_best_thirds',
+      operation: 'toggle_best_thirds_letter',
       outcome: 'rejected',
       reason: pinGate.reason,
       user_id: userId,
@@ -91,31 +89,34 @@ export async function submitBestThirds(
     return { error: pinGate.reason };
   }
 
-  await db.transaction(async (tx) => {
-    await tx
+  if (selected) {
+    await db
+      .insert(user_best_thirds)
+      .values({
+        user_id: userId,
+        tournament_id: tournamentId,
+        group_letter: letter,
+      })
+      .onConflictDoNothing();
+  } else {
+    await db
       .delete(user_best_thirds)
       .where(
         and(
           eq(user_best_thirds.user_id, userId),
           eq(user_best_thirds.tournament_id, tournamentId),
+          eq(user_best_thirds.group_letter, letter),
         ),
       );
-    await tx.insert(user_best_thirds).values(
-      submitted.map((letter) => ({
-        user_id: userId,
-        tournament_id: tournamentId,
-        group_letter: letter,
-      })),
-    );
-  });
+  }
 
   log.info({
-    operation: 'submit_best_thirds',
-    outcome: 'ok',
+    operation: 'toggle_best_thirds_letter',
+    outcome: selected ? 'added' : 'removed',
     user_id: userId,
     tournament_id: tournamentId,
     group_id: session.user.group_id,
-    picks_written: submitted.length,
+    group_letter: letter,
   });
 
   return { ok: true };

@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
@@ -9,17 +9,15 @@ import { assertEditAllowedForUser } from '@/lib/pin/guard';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { questions, teams, user_questions } from '@/db/schema';
-import { ANSWER_MAX_LEN, REQUIRED_ANSWERS, TRIVIA_STAGE_CODE } from './constants';
+import { ANSWER_MAX_LEN, TRIVIA_STAGE_CODE } from './constants';
 
-export type SubmitTriviaError =
+export type SaveTriviaAnswerError =
   | 'no_session'
   | 'no_user'
-  | 'invalid_count'
   | 'invalid_position'
-  | 'empty_answer'
+  | 'too_long'
   | 'invalid_integer'
   | 'invalid_team'
-  | 'too_long'
   | 'unknown_question'
   | 'stage_closed'
   | 'stage_not_yet'
@@ -27,45 +25,21 @@ export type SubmitTriviaError =
   | 'pin_required'
   | 'pin_rate_limited';
 
-export interface SubmitTriviaState {
+export interface SaveTriviaAnswerState {
   ok?: boolean;
-  error?: SubmitTriviaError;
+  error?: SaveTriviaAnswerError;
 }
 
-interface ParsedAnswer {
-  position: number;
-  answer: string;
-}
-
-function parseFormAnswers(formData: FormData): ParsedAnswer[] | SubmitTriviaError {
-  const parsed: ParsedAnswer[] = [];
-  const seen = new Set<number>();
-
-  for (let pos = 1; pos <= REQUIRED_ANSWERS; pos++) {
-    const raw = formData.get(`answer_${pos}`);
-    if (raw === null) {
-      return 'invalid_count';
-    }
-    const answer = String(raw).trim();
-    if (answer.length === 0) {
-      return 'empty_answer';
-    }
-    if (answer.length > ANSWER_MAX_LEN) {
-      return 'too_long';
-    }
-    if (seen.has(pos)) {
-      return 'invalid_position';
-    }
-    seen.add(pos);
-    parsed.push({ position: pos, answer });
-  }
-  return parsed;
-}
-
-export async function submitTrivia(
-  _prev: SubmitTriviaState,
-  formData: FormData,
-): Promise<SubmitTriviaState> {
+/**
+ * Per-question upsert. Empty/null `answer` deletes the row (player cleared the
+ * field). Resets `points` to null on each write — the operator's next
+ * recompute reassigns scoring. Constitution Rule 6 keeps scoring math in
+ * `lib/scoring/`; this action only persists raw answers.
+ */
+export async function saveTriviaAnswer(
+  position: number,
+  answer: string | null,
+): Promise<SaveTriviaAnswerState> {
   const session = await auth();
   if (!session?.user?.group_id) {
     return { error: 'no_session' };
@@ -75,9 +49,13 @@ export async function submitTrivia(
     return { error: 'no_user' };
   }
 
-  const parsed = parseFormAnswers(formData);
-  if (typeof parsed === 'string') {
-    return { error: parsed };
+  if (!Number.isInteger(position) || position < 1) {
+    return { error: 'invalid_position' };
+  }
+
+  const trimmed = answer === null ? '' : String(answer).trim();
+  if (trimmed.length > ANSWER_MAX_LEN) {
+    return { error: 'too_long' };
   }
 
   const tournamentId = await getCurrentTournamentId();
@@ -85,7 +63,7 @@ export async function submitTrivia(
   const gate = await isStageOpen(TRIVIA_STAGE_CODE, tournamentId);
   if (!gate.open) {
     log.warn({
-      operation: 'submit_trivia',
+      operation: 'save_trivia_answer',
       outcome: 'rejected',
       reason: `stage_${gate.reason}`,
       user_id: userId,
@@ -108,7 +86,7 @@ export async function submitTrivia(
   });
   if (!pinGate.ok) {
     log.warn({
-      operation: 'submit_trivia',
+      operation: 'save_trivia_answer',
       outcome: 'rejected',
       reason: pinGate.reason,
       user_id: userId,
@@ -128,74 +106,69 @@ export async function submitTrivia(
     .where(
       and(
         eq(questions.tournament_id, tournamentId),
-        inArray(
-          questions.position,
-          parsed.map((p) => p.position),
-        ),
+        eq(questions.position, position),
       ),
     );
 
-  if (questionRows.length !== REQUIRED_ANSWERS) {
+  if (questionRows.length === 0) {
     return { error: 'unknown_question' };
   }
+  const q = questionRows[0];
 
-  const questionByPosition = new Map(questionRows.map((q) => [q.position, q]));
-  const hasTeamShape = questionRows.some((q) => q.answer_shape === 'team');
-  const validTeamCodes = hasTeamShape
-    ? new Set(
-        (
-          await db
-            .select({ code: teams.code })
-            .from(teams)
-            .where(eq(teams.tournament_id, tournamentId))
-        ).map((t) => t.code),
-      )
-    : new Set<string>();
-  for (const p of parsed) {
-    const q = questionByPosition.get(p.position);
-    if (!q) {
-      return { error: 'unknown_question' };
-    }
-    if (q.answer_shape === 'integer' && !/^-?\d+$/.test(p.answer)) {
-      return { error: 'invalid_integer' };
-    }
-    if (q.answer_shape === 'team' && !validTeamCodes.has(p.answer)) {
+  if (trimmed.length === 0) {
+    await db
+      .delete(user_questions)
+      .where(
+        and(eq(user_questions.user_id, userId), eq(user_questions.question_id, q.id)),
+      );
+    log.info({
+      operation: 'save_trivia_answer',
+      outcome: 'cleared',
+      user_id: userId,
+      tournament_id: tournamentId,
+      group_id: session.user.group_id,
+      position,
+    });
+    return { ok: true };
+  }
+
+  if (q.answer_shape === 'integer' && !/^-?\d+$/.test(trimmed)) {
+    return { error: 'invalid_integer' };
+  }
+  if (q.answer_shape === 'team') {
+    const teamRows = await db
+      .select({ code: teams.code })
+      .from(teams)
+      .where(and(eq(teams.tournament_id, tournamentId), eq(teams.code, trimmed)));
+    if (teamRows.length === 0) {
       return { error: 'invalid_team' };
     }
   }
 
-  await db.transaction(async (tx) => {
-    for (const p of parsed) {
-      const q = questionByPosition.get(p.position)!;
-      // Resetting `points` to null on re-submit invalidates any stale scoring
-      // until the operator's next recompute. Constitution Rule 6: scoring
-      // math lives in lib/scoring/, not here.
-      await tx
-        .insert(user_questions)
-        .values({
-          user_id: userId,
-          question_id: q.id,
-          answer: p.answer,
-          points: null,
-        })
-        .onConflictDoUpdate({
-          target: [user_questions.user_id, user_questions.question_id],
-          set: {
-            answer: p.answer,
-            points: null,
-            updated_at: new Date(),
-          },
-        });
-    }
-  });
+  await db
+    .insert(user_questions)
+    .values({
+      user_id: userId,
+      question_id: q.id,
+      answer: trimmed,
+      points: null,
+    })
+    .onConflictDoUpdate({
+      target: [user_questions.user_id, user_questions.question_id],
+      set: {
+        answer: trimmed,
+        points: null,
+        updated_at: new Date(),
+      },
+    });
 
   log.info({
-    operation: 'submit_trivia',
+    operation: 'save_trivia_answer',
     outcome: 'ok',
     user_id: userId,
     tournament_id: tournamentId,
     group_id: session.user.group_id,
-    answers_written: parsed.length,
+    position,
   });
 
   return { ok: true };

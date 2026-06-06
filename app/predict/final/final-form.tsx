@@ -1,14 +1,15 @@
 'use client';
 
 import { KeyRound, Medal } from 'lucide-react';
-import { startTransition, useActionState, useState } from 'react';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
-import { SubmitButton } from '@/components/submit-button';
+import { SaveStatusIndicator } from '@/components/save-status-indicator';
+import { useAutoSave } from '@/lib/hooks/use-autosave';
 import type { EditMode } from '@/lib/pin/edit-mode';
-import { submitFinalPicks, type SubmitFinalPicksState } from './actions';
+import { saveFinalSlot } from './actions';
 import {
   FINAL_SLOT_LABELS_ET,
   FORM_FIELD_PREFIX,
@@ -21,13 +22,11 @@ export interface CandidateTeamView {
   name_et: string;
 }
 
-const initialState: SubmitFinalPicksState = {};
-
 const ERROR_COPY: Record<string, string> = {
   no_session: 'Logi sisse uuesti.',
   no_user: 'Vali kõigepealt mängija.',
-  missing_slot: 'Vali kõigile neljale kohale meeskond.',
-  unknown_team: 'Üks valitud meeskondadest ei kuulu sellesse turniiri.',
+  invalid_slot: 'Vigane lahter — proovi uuesti.',
+  unknown_team: 'Valitud meeskond ei kuulu sellesse turniiri.',
   stage_closed: 'Finaali ennustuse aken on suletud.',
   stage_not_yet: 'Finaali ennustuse aken ei ole veel avatud.',
   stage_not_found: 'Finaali etappi ei leitud — võta ühendust korraldajaga.',
@@ -35,6 +34,7 @@ const ERROR_COPY: Record<string, string> = {
     'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
+  network_error: 'Võrguviga — proovi uuesti.',
 };
 
 const MEDAL_TONE: Record<FinalSlot, string> = {
@@ -61,34 +61,41 @@ export function FinalForm({
   userId,
   maskedRecoveryEmail,
 }: FinalFormProps) {
-  const [state, formAction, pending] = useActionState(submitFinalPicks, initialState);
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
   const [pinModalOpen, setPinModalOpen] = useState(false);
+  const autosave = useAutoSave();
 
   const disabled = mode !== 'edit';
 
   function onPick(slot: FinalSlot, teamId: string) {
-    setPicks((prev) => ({ ...prev, [slot]: teamId || undefined }));
+    const normalized = teamId || undefined;
+    setPicks((prev) => ({ ...prev, [slot]: normalized }));
+    autosave.schedule(`slot:${slot}`, () =>
+      saveFinalSlot(slot, normalized ?? null),
+    );
   }
 
   const filledCount = slotsOrder.filter((s) => picks[s]).length;
-  const allFilled = filledCount === slotsOrder.length;
+  const errorMessage = autosave.errorCode
+    ? ERROR_COPY[autosave.errorCode] ?? null
+    : null;
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        // React 19's <form action=…> auto-resets uncontrolled inputs after a
-        // successful submit and mangles <select> via the option's
-        // defaultSelected attribute — even controlled selects flicker back to
-        // their initial value. Driving the action via onSubmit + startTransition
-        // sidesteps that reset while keeping useActionState's `pending` accurate.
-        startTransition(() => formAction(formData));
-      }}
-      className="space-y-5"
-      noValidate
-    >
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-text-muted" aria-live="polite">
+          Valitud:{' '}
+          <strong className="text-text-primary">
+            {filledCount} / {slotsOrder.length}
+          </strong>
+        </p>
+        <SaveStatusIndicator
+          status={autosave.status}
+          lastSavedAt={autosave.lastSavedAt}
+          errorMessage={errorMessage}
+        />
+      </div>
+
       <div className="space-y-3">
         {slotsOrder.map((slot) => {
           const inputId = `${FORM_FIELD_PREFIX}${slot}`;
@@ -127,58 +134,35 @@ export function FinalForm({
         })}
       </div>
 
-      <p className="text-sm text-text-muted" aria-live="polite">
-        Valitud:{' '}
-        <strong className="text-text-primary">
-          {filledCount} / {slotsOrder.length}
-        </strong>
-      </p>
-
-      {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-state-closed-text">
-          {ERROR_COPY[state.error]}
-        </p>
+      {mode !== 'edit' && (
+        <div className="flex justify-end pt-2">
+          {mode === 'closed' ? (
+            <Badge
+              variant="outline"
+              className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+            >
+              Suletud
+            </Badge>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => setPinModalOpen(true)}
+              aria-label="Sisesta PIN, et alustada muutmist"
+              className="bg-brand-green hover:bg-brand-green-hover"
+            >
+              <KeyRound aria-hidden="true" />
+              Muuda
+            </Button>
+          )}
+        </div>
       )}
-      {state.ok && (
-        <p role="status" className="text-sm text-brand-green">
-          Ennustus salvestatud.
-        </p>
-      )}
 
-      <div className="flex justify-end pt-2">
-        {mode === 'closed' ? (
-          <Badge
-            variant="outline"
-            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
-          >
-            Suletud
-          </Badge>
-        ) : mode === 'pending-unlock' ? (
-          <Button
-            type="button"
-            onClick={() => setPinModalOpen(true)}
-            aria-label="Sisesta PIN, et alustada muutmist"
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            <KeyRound aria-hidden="true" />
-            Muuda
-          </Button>
-        ) : (
-          <SubmitButton
-            pendingOverride={pending}
-            disabled={!allFilled}
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            Salvesta valikud
-          </SubmitButton>
-        )}
-      </div>
       <PinEntryModal
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
         maskedRecoveryEmail={maskedRecoveryEmail}
       />
-    </form>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
@@ -15,7 +15,7 @@ import {
   type KnockoutRound,
 } from './constants';
 
-export type SubmitKnockoutPicksError =
+export type SaveKnockoutPickError =
   | 'no_session'
   | 'no_user'
   | 'invalid_round'
@@ -29,17 +29,16 @@ export type SubmitKnockoutPicksError =
   | 'pin_required'
   | 'pin_rate_limited';
 
-export interface SubmitKnockoutPicksState {
+export interface SaveKnockoutPickState {
   ok?: boolean;
-  error?: SubmitKnockoutPicksError;
-  round?: KnockoutRound;
+  error?: SaveKnockoutPickError;
 }
 
-export async function submitKnockoutPicks(
-  _prev: SubmitKnockoutPicksState,
-  formData: FormData,
-): Promise<SubmitKnockoutPicksState> {
-  const roundRaw = String(formData.get('round') ?? '');
+export async function saveKnockoutPick(
+  roundRaw: string,
+  gameId: string,
+  prediction: string,
+): Promise<SaveKnockoutPickState> {
   if (!isKnockoutRound(roundRaw)) {
     return { error: 'invalid_round' };
   }
@@ -47,36 +46,23 @@ export async function submitKnockoutPicks(
 
   const session = await auth();
   if (!session?.user?.group_id) {
-    return { error: 'no_session', round };
+    return { error: 'no_session' };
   }
 
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { error: 'no_user', round };
+    return { error: 'no_user' };
   }
 
-  // Parse submitted picks: form entries `pick:<game_id>` -> prediction code.
-  // Slots the player left untouched (e.g. TBD pairs) simply have no entry.
-  const submitted = new Map<string, string>();
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith('pick:')) continue;
-    const gameId = key.slice('pick:'.length);
-    const code = String(value);
-    if (code === '') continue;
-    submitted.set(gameId, code);
-  }
-
-  for (const code of submitted.values()) {
-    if (!isKnockoutPredictionCode(code)) {
-      return { error: 'invalid_prediction', round };
-    }
+  if (!isKnockoutPredictionCode(prediction)) {
+    return { error: 'invalid_prediction' };
   }
 
   const tournamentId = await getCurrentTournamentId();
   const gate = await isStageOpen(round, tournamentId);
   if (!gate.open) {
     log.warn({
-      operation: 'submit_knockout_picks',
+      operation: 'save_knockout_pick',
       outcome: 'rejected',
       reason: `stage_${gate.reason}`,
       round,
@@ -90,7 +76,6 @@ export async function submitKnockoutPicks(
           : gate.reason === 'not_yet'
           ? 'stage_not_yet'
           : 'stage_not_found',
-      round,
     };
   }
 
@@ -101,7 +86,7 @@ export async function submitKnockoutPicks(
   });
   if (!pinGate.ok) {
     log.warn({
-      operation: 'submit_knockout_picks',
+      operation: 'save_knockout_pick',
       outcome: 'rejected',
       reason: pinGate.reason,
       round,
@@ -109,25 +94,9 @@ export async function submitKnockoutPicks(
       group_id: session.user.group_id,
       tournament_id: tournamentId,
     });
-    return { error: pinGate.reason, round };
+    return { error: pinGate.reason };
   }
 
-  if (submitted.size === 0) {
-    // Nothing to write; treat as a no-op success so the form can still report
-    // "saved" to the player who came in just to look.
-    log.info({
-      operation: 'submit_knockout_picks',
-      outcome: 'ok',
-      round,
-      user_id: userId,
-      tournament_id: tournamentId,
-      group_id: session.user.group_id,
-      picks_written: 0,
-    });
-    return { ok: true, round };
-  }
-
-  const submittedIds = Array.from(submitted.keys());
   const gameRows = await db
     .select({
       id: games.id,
@@ -136,47 +105,39 @@ export async function submitKnockoutPicks(
       team_away_id: games.team_away_id,
     })
     .from(games)
-    .where(
-      and(eq(games.tournament_id, tournamentId), inArray(games.id, submittedIds)),
-    );
+    .where(and(eq(games.tournament_id, tournamentId), eq(games.id, gameId)));
 
-  if (gameRows.length !== submittedIds.length) {
-    return { error: 'unknown_game', round };
+  if (gameRows.length === 0) {
+    return { error: 'unknown_game' };
   }
-  for (const g of gameRows) {
-    if (g.stage_code !== round) {
-      return { error: 'wrong_round', round };
-    }
-    if (g.team_home_id === null || g.team_away_id === null) {
-      return { error: 'tbd_pair', round };
-    }
+  const g = gameRows[0];
+  if (g.stage_code !== round) {
+    return { error: 'wrong_round' };
+  }
+  if (g.team_home_id === null || g.team_away_id === null) {
+    return { error: 'tbd_pair' };
   }
 
   await db.transaction(async (tx) => {
-    // Idempotent: replace this user's picks for this round only.
     await tx
       .delete(user_games)
-      .where(
-        and(eq(user_games.user_id, userId), inArray(user_games.game_id, submittedIds)),
-      );
-    await tx.insert(user_games).values(
-      Array.from(submitted.entries()).map(([gameId, prediction]) => ({
-        user_id: userId,
-        game_id: gameId,
-        prediction,
-      })),
-    );
+      .where(and(eq(user_games.user_id, userId), eq(user_games.game_id, gameId)));
+    await tx.insert(user_games).values({
+      user_id: userId,
+      game_id: gameId,
+      prediction,
+    });
   });
 
   log.info({
-    operation: 'submit_knockout_picks',
+    operation: 'save_knockout_pick',
     outcome: 'ok',
     round,
     user_id: userId,
     tournament_id: tournamentId,
     group_id: session.user.group_id,
-    picks_written: submitted.size,
+    game_id: gameId,
   });
 
-  return { ok: true, round };
+  return { ok: true };
 }

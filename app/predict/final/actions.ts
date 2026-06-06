@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
@@ -11,16 +11,15 @@ import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { teams, user_teams } from '@/db/schema';
 import {
   FINAL_ROUND_VALUE,
-  FINAL_SLOTS,
   FINAL_STAGE_CODE,
-  FORM_FIELD_PREFIX,
+  isFinalSlot,
   type FinalSlot,
 } from './constants';
 
-export type SubmitFinalPicksError =
+export type SaveFinalSlotError =
   | 'no_session'
   | 'no_user'
-  | 'missing_slot'
+  | 'invalid_slot'
   | 'unknown_team'
   | 'stage_closed'
   | 'stage_not_yet'
@@ -28,15 +27,20 @@ export type SubmitFinalPicksError =
   | 'pin_required'
   | 'pin_rate_limited';
 
-export interface SubmitFinalPicksState {
+export interface SaveFinalSlotState {
   ok?: boolean;
-  error?: SubmitFinalPicksError;
+  error?: SaveFinalSlotError;
 }
 
-export async function submitFinalPicks(
-  _prev: SubmitFinalPicksState,
-  formData: FormData,
-): Promise<SubmitFinalPicksState> {
+/**
+ * Per-slot upsert. Pass `teamId === null` (or empty string) to clear the slot —
+ * the row is deleted so the player's pick set shrinks. Partial slot fills are
+ * allowed; the scoring engine only scores filled slots.
+ */
+export async function saveFinalSlot(
+  slot: string,
+  teamId: string | null,
+): Promise<SaveFinalSlotState> {
   const session = await auth();
   if (!session?.user?.group_id) {
     return { error: 'no_session' };
@@ -47,25 +51,19 @@ export async function submitFinalPicks(
     return { error: 'no_user' };
   }
 
-  const picks: Partial<Record<FinalSlot, string>> = {};
-  for (const slot of FINAL_SLOTS) {
-    const value = String(formData.get(`${FORM_FIELD_PREFIX}${slot}`) ?? '').trim();
-    if (value === '') {
-      return { error: 'missing_slot' };
-    }
-    picks[slot] = value;
+  if (!isFinalSlot(slot)) {
+    return { error: 'invalid_slot' };
   }
-
-  // Players may tactically pick the same team for multiple medal slots.
-  const teamIds = FINAL_SLOTS.map((s) => picks[s]!);
+  const normalizedTeamId = teamId && teamId.trim() !== '' ? teamId : null;
 
   const tournamentId = await getCurrentTournamentId();
   const gate = await isStageOpen(FINAL_STAGE_CODE, tournamentId);
   if (!gate.open) {
     log.warn({
-      operation: 'submit_final_picks',
+      operation: 'save_final_slot',
       outcome: 'rejected',
       reason: `stage_${gate.reason}`,
+      slot,
       user_id: userId,
       tournament_id: tournamentId,
     });
@@ -86,9 +84,10 @@ export async function submitFinalPicks(
   });
   if (!pinGate.ok) {
     log.warn({
-      operation: 'submit_final_picks',
+      operation: 'save_final_slot',
       outcome: 'rejected',
       reason: pinGate.reason,
+      slot,
       user_id: userId,
       group_id: session.user.group_id,
       tournament_id: tournamentId,
@@ -96,14 +95,35 @@ export async function submitFinalPicks(
     return { error: pinGate.reason };
   }
 
-  // Verify every chosen team belongs to this tournament before writing.
-  // Players may repeat a team across slots, so check against the distinct set.
-  const distinctTeamIds = Array.from(new Set(teamIds));
+  const slotValue: FinalSlot = slot;
+
+  if (normalizedTeamId === null) {
+    await db
+      .delete(user_teams)
+      .where(
+        and(
+          eq(user_teams.user_id, userId),
+          eq(user_teams.tournament_id, tournamentId),
+          eq(user_teams.round, FINAL_ROUND_VALUE),
+          eq(user_teams.slot, slotValue),
+        ),
+      );
+    log.info({
+      operation: 'save_final_slot',
+      outcome: 'cleared',
+      user_id: userId,
+      tournament_id: tournamentId,
+      group_id: session.user.group_id,
+      slot: slotValue,
+    });
+    return { ok: true };
+  }
+
   const teamRows = await db
     .select({ id: teams.id })
     .from(teams)
-    .where(and(eq(teams.tournament_id, tournamentId), inArray(teams.id, distinctTeamIds)));
-  if (teamRows.length !== distinctTeamIds.length) {
+    .where(and(eq(teams.tournament_id, tournamentId), eq(teams.id, normalizedTeamId)));
+  if (teamRows.length === 0) {
     return { error: 'unknown_team' };
   }
 
@@ -115,26 +135,25 @@ export async function submitFinalPicks(
           eq(user_teams.user_id, userId),
           eq(user_teams.tournament_id, tournamentId),
           eq(user_teams.round, FINAL_ROUND_VALUE),
+          eq(user_teams.slot, slotValue),
         ),
       );
-    await tx.insert(user_teams).values(
-      FINAL_SLOTS.map((slot) => ({
-        user_id: userId,
-        tournament_id: tournamentId,
-        round: FINAL_ROUND_VALUE,
-        slot,
-        team_id: picks[slot]!,
-      })),
-    );
+    await tx.insert(user_teams).values({
+      user_id: userId,
+      tournament_id: tournamentId,
+      round: FINAL_ROUND_VALUE,
+      slot: slotValue,
+      team_id: normalizedTeamId,
+    });
   });
 
   log.info({
-    operation: 'submit_final_picks',
+    operation: 'save_final_slot',
     outcome: 'ok',
     user_id: userId,
     tournament_id: tournamentId,
     group_id: session.user.group_id,
-    picks_written: FINAL_SLOTS.length,
+    slot: slotValue,
   });
 
   return { ok: true };

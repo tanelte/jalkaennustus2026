@@ -1,28 +1,27 @@
 'use client';
 
 import { KeyRound } from 'lucide-react';
-import { startTransition, useActionState, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
-import { SubmitButton } from '@/components/submit-button';
+import { SaveStatusIndicator } from '@/components/save-status-indicator';
+import { useAutoSave } from '@/lib/hooks/use-autosave';
 import type { EditMode } from '@/lib/pin/edit-mode';
 import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 import type { TriviaPeerAnswer } from '@/lib/peer-predictions/load-trivia-payloads';
-import { submitTrivia, type SubmitTriviaState } from './actions';
+import { saveTriviaAnswer } from './actions';
 import { ANSWER_MAX_LEN } from './constants';
 
-const initialState: SubmitTriviaState = {};
+const TYPED_DEBOUNCE_MS = 800;
 
 const ERROR_COPY: Record<string, string> = {
   no_session: 'Logi sisse uuesti.',
   no_user: 'Vali kõigepealt kasutaja.',
-  invalid_count: 'Täida kõik viis vastust.',
   invalid_position: 'Vormi viga — proovi uuesti.',
-  empty_answer: 'Iga vastus peab olema täidetud.',
   invalid_integer: 'Numbriline vastus peab olema täisarv.',
   invalid_team: 'Vastus peab olema üks turniiri riikidest.',
   too_long: 'Vastus on liiga pikk.',
@@ -34,6 +33,7 @@ const ERROR_COPY: Record<string, string> = {
     'PIN-i sessioon aegus. Värskenda lehte ja klõpsa Muuda nuppu uuesti.',
   pin_rate_limited:
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
+  network_error: 'Võrguviga — proovi uuesti.',
 };
 
 export interface TriviaQuestionRow {
@@ -53,13 +53,6 @@ export interface TeamOption {
 const INPUT_BASE =
   'mt-2 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
-/**
- * Build a per-question renderer for the peer-view popover. For `team`-shape
- * questions the stored answer is a team code (e.g. `ARG`); we resolve it to
- * the team's Estonian display name. For `integer` / free-text shapes the
- * stored answer is already the display value. Scoring's Q5-conditional-on-Q4
- * trick is NOT applied on the peer-view side (S02 AC).
- */
 function buildRenderTriviaPick(
   answerShape: string,
   teamNameByCode: ReadonlyMap<string, string>,
@@ -98,11 +91,11 @@ export function TriviaForm({
    */
   peerRowsByQuestionId: Record<string, PeerRow<TriviaPeerAnswer>[]>;
 }) {
-  const [state, formAction, pending] = useActionState(submitTrivia, initialState);
   const [answers, setAnswers] = useState<Record<number, string>>(() =>
     Object.fromEntries(questions.map((q) => [q.position, q.currentAnswer])),
   );
   const [pinModalOpen, setPinModalOpen] = useState(false);
+  const autosave = useAutoSave();
 
   const disabled = mode !== 'edit';
 
@@ -111,20 +104,29 @@ export function TriviaForm({
     [teams],
   );
 
+  function onChange(position: number, value: string, debounceMs: number) {
+    setAnswers((prev) => ({ ...prev, [position]: value }));
+    autosave.schedule(
+      `q:${position}`,
+      () => saveTriviaAnswer(position, value),
+      { debounceMs },
+    );
+  }
+
+  const errorMessage = autosave.errorCode
+    ? ERROR_COPY[autosave.errorCode] ?? null
+    : null;
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        // React 19's <form action=…> auto-resets uncontrolled inputs after a
-        // successful submit and flickers controlled inputs back to initial.
-        // Driving the action via onSubmit + startTransition sidesteps the
-        // reset while keeping useActionState's `pending` accurate.
-        startTransition(() => formAction(formData));
-      }}
-      className="space-y-5"
-      noValidate
-    >
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <SaveStatusIndicator
+          status={autosave.status}
+          lastSavedAt={autosave.lastSavedAt}
+          errorMessage={errorMessage}
+        />
+      </div>
+
       {questions.map((q) => {
         const inputId = `answer_${q.position}`;
         const isTeam = q.answerShape === 'team';
@@ -174,11 +176,8 @@ export function TriviaForm({
                 id={inputId}
                 name={inputId}
                 value={answers[q.position] ?? ''}
-                onChange={(e) =>
-                  setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
-                }
+                onChange={(e) => onChange(q.position, e.target.value, 0)}
                 disabled={disabled}
-                required
                 className={INPUT_BASE}
               >
                 <option value="" disabled>
@@ -199,10 +198,9 @@ export function TriviaForm({
                 maxLength={ANSWER_MAX_LEN}
                 value={answers[q.position] ?? ''}
                 onChange={(e) =>
-                  setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
+                  onChange(q.position, e.target.value, TYPED_DEBOUNCE_MS)
                 }
                 disabled={disabled}
-                required
                 className={INPUT_BASE}
               />
             )}
@@ -210,50 +208,35 @@ export function TriviaForm({
         );
       })}
 
-      {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-state-closed-text">
-          {ERROR_COPY[state.error]}
-        </p>
-      )}
-      {state.ok && (
-        <p role="status" className="text-sm text-brand-green">
-          Trivia vastused salvestatud.
-        </p>
+      {mode !== 'edit' && (
+        <div className="flex justify-end pt-2">
+          {mode === 'closed' ? (
+            <Badge
+              variant="outline"
+              className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+            >
+              Suletud
+            </Badge>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => setPinModalOpen(true)}
+              aria-label="Sisesta PIN, et alustada muutmist"
+              className="bg-brand-green hover:bg-brand-green-hover"
+            >
+              <KeyRound aria-hidden="true" />
+              Muuda
+            </Button>
+          )}
+        </div>
       )}
 
-      <div className="flex justify-end pt-2">
-        {mode === 'closed' ? (
-          <Badge
-            variant="outline"
-            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
-          >
-            Suletud
-          </Badge>
-        ) : mode === 'pending-unlock' ? (
-          <Button
-            type="button"
-            onClick={() => setPinModalOpen(true)}
-            aria-label="Sisesta PIN, et alustada muutmist"
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            <KeyRound aria-hidden="true" />
-            Muuda
-          </Button>
-        ) : (
-          <SubmitButton
-            pendingOverride={pending}
-            className="bg-brand-green hover:bg-brand-green-hover"
-          >
-            Salvesta vastused
-          </SubmitButton>
-        )}
-      </div>
       <PinEntryModal
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
         maskedRecoveryEmail={maskedRecoveryEmail}
       />
-    </form>
+    </div>
   );
 }
