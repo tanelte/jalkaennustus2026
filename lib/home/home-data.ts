@@ -36,6 +36,7 @@ export interface OpenWindowCard {
 export interface UpcomingWindowCard {
   code: StageCode;
   labelEt: string;
+  ctaHref: string;
   opensAt: Date;
 }
 
@@ -175,6 +176,7 @@ export async function getHomeData(
   const upcomingWindows: UpcomingWindowCard[] = upcomingStageRows.map((row) => ({
     code: row.code,
     labelEt: STAGE_LABEL_ET[row.code],
+    ctaHref: STAGE_CTA_HREF[row.code],
     opensAt: row.opens_at,
   }));
 
