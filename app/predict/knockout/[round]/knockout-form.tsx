@@ -5,6 +5,10 @@ import { useActionState, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
+import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
+import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payloads';
 import {
   submitKnockoutPicks,
   type SubmitKnockoutPicksState,
@@ -68,12 +72,40 @@ interface MatchRowProps {
   pick: string | null;
   onPick: (gameId: string, code: KnockoutPredictionCode) => void;
   disabled: boolean;
+  peerRows: PeerRow<KnockoutPeerPick>[];
+  groupName: string;
 }
 
-function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
+/**
+ * Renders one peer's team-pick chip inside the popover. Mirrors the styling
+ * of the form's own selected team-pick chip (brand-green pill) — but at the
+ * popover's smaller scale, so it sits naturally beside the peer's name.
+ *
+ * S04 AC: "the team they picked to advance from that pair is shown".
+ */
+function renderKnockoutPick(payload: KnockoutPeerPick) {
+  return (
+    <span className="inline-flex items-center rounded-md border border-brand-green/30 bg-brand-green-soft px-2 py-0.5 text-xs font-medium text-brand-green">
+      {payload.teamName}
+    </span>
+  );
+}
+
+function MatchRow({
+  match,
+  pick,
+  onPick,
+  disabled,
+  peerRows,
+  groupName,
+}: MatchRowProps) {
   const isTbd = match.homeTeam === null || match.awayTeam === null;
   const homeLabel = match.homeTeam ? match.homeTeam.name_et : 'TBD';
   const awayLabel = match.awayTeam ? match.awayTeam.name_et : 'TBD';
+  const submittedCount = peerRows.filter(
+    (p) => p.submittedPayload !== null,
+  ).length;
+  const peerTotal = peerRows.length;
 
   return (
     <fieldset
@@ -85,8 +117,25 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
       <legend className="px-1 text-xs uppercase tracking-wide text-text-muted">
         {match.roundLabel} — {formatKickoff(match.kickoffAt)}
       </legend>
-      <div className="text-sm font-medium text-text-primary">
-        {homeLabel} <span className="text-text-muted">vs</span> {awayLabel}
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-medium text-text-primary">
+          {homeLabel} <span className="text-text-muted">vs</span> {awayLabel}
+        </div>
+        {peerTotal > 0 && (
+          <PeerViewPopover<KnockoutPeerPick>
+            groupName={groupName}
+            peerRows={peerRows}
+            renderPick={renderKnockoutPick}
+            size="row"
+            trigger={
+              <PeerViewTrigger
+                n={submittedCount}
+                m={peerTotal}
+                size="row"
+              />
+            }
+          />
+        )}
       </div>
 
       {isTbd ? (
@@ -143,6 +192,14 @@ export interface KnockoutFormProps {
   gateClosed?: boolean;
   userId: string;
   maskedRecoveryEmail?: string | null;
+  /** Current group's display name, used in the peer-view popover header. */
+  groupName: string;
+  /**
+   * Peer rows per bracket pair. Keyed by `game_id` (each knockout match is
+   * one bracket pair). The viewer + the `tegelikud tulemused` singleton are
+   * already filtered out by the seam.
+   */
+  peerRowsBySlotKey: Record<string, PeerRow<KnockoutPeerPick>[]>;
 }
 
 export function KnockoutForm({
@@ -152,6 +209,8 @@ export function KnockoutForm({
   gateClosed = false,
   userId,
   maskedRecoveryEmail,
+  groupName,
+  peerRowsBySlotKey,
 }: KnockoutFormProps) {
   const [state, formAction, pending] = useActionState(
     submitKnockoutPicks,
@@ -191,6 +250,8 @@ export function KnockoutForm({
             pick={picks[m.id] ?? null}
             onPick={onPick}
             disabled={disabled}
+            peerRows={peerRowsBySlotKey[m.id] ?? []}
+            groupName={groupName}
           />
         ))}
       </div>

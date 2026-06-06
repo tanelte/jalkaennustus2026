@@ -18,6 +18,9 @@ import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments
 import { games, teams, user_games, users } from '@/db/schema';
 import { KnockoutForm, type KnockoutMatchView } from './knockout-form';
 import { ROUND_LABELS_ET, isKnockoutRound, type KnockoutRound } from './constants';
+import { loadAllKnockoutPeerRowsForSlots } from '@/lib/peer-predictions/load-knockout-payloads';
+import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payloads';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +138,18 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
       getMaskedRecoveryEmailForUser(userId),
     ]);
 
+  // Peer predictions per bracket pair (one entry per game on this round).
+  // Constitution Rule 2: groupId comes from the session, never URL input.
+  const peerRowsByGameId = await loadAllKnockoutPeerRowsForSlots(
+    round,
+    matches.map((m) => m.id),
+    { groupId: session.user.group_id, viewerUserId: userId },
+  );
+  const peerRowsRecord: Record<string, PeerRow<KnockoutPeerPick>[]> = {};
+  for (const [gameId, rows] of peerRowsByGameId.entries()) {
+    peerRowsRecord[gameId] = rows;
+  }
+
   return (
     <>
       <TopBar
@@ -178,6 +193,8 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
               gateClosed={!gate.open}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
+              groupName={session.user.username}
+              peerRowsBySlotKey={peerRowsRecord}
             />
           </CardContent>
         </Card>
