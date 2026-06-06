@@ -167,7 +167,12 @@ export function PinEntryModal({
           salvestada.
         </p>
 
-        <form action={verifyFormAction} className="mt-4 space-y-4" noValidate>
+        <form
+          action={verifyFormAction}
+          onSubmit={(e) => e.stopPropagation()}
+          className="mt-4 space-y-4"
+          noValidate
+        >
           <div>
             <label
               htmlFor="pin-modal-input"
@@ -241,7 +246,11 @@ export function PinEntryModal({
                 </p>
               </div>
             ) : (
-              <form action={resetFormAction} className="space-y-3">
+              <form
+                action={resetFormAction}
+                onSubmit={(e) => e.stopPropagation()}
+                className="space-y-3"
+              >
                 <p className="text-sm text-text-body">
                   Saadame taastuslingi su salvestatud aadressile{' '}
                   <span className="font-semibold">{maskedRecoveryEmail}</span>.
