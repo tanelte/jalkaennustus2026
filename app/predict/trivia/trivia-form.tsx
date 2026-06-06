@@ -5,6 +5,10 @@ import { startTransition, useActionState, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SubmitButton } from '@/components/submit-button';
+import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover';
+import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
+import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
+import type { TriviaPeerAnswer } from '@/lib/peer-predictions/load-trivia-payloads';
 import { submitTrivia, type SubmitTriviaState } from './actions';
 import { ANSWER_MAX_LEN } from './constants';
 
@@ -29,6 +33,7 @@ const ERROR_COPY: Record<string, string> = {
 };
 
 export interface TriviaQuestionRow {
+  id: string;
   position: number;
   promptEt: string;
   answerShape: string;
@@ -44,6 +49,20 @@ export interface TeamOption {
 const INPUT_BASE =
   'mt-2 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
+/**
+ * Renders one peer's submitted trivia answer in the popover. The peer view
+ * shows whatever the peer submitted as a free-text string — `team`, `integer`
+ * and free-text answer-shapes all collapse to the stored text here. Scoring's
+ * Q5-conditional-on-Q4 trick is NOT applied on the peer-view side (S02 AC).
+ */
+function renderTriviaPick(payload: TriviaPeerAnswer) {
+  return (
+    <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md bg-bg-app px-2 text-sm font-semibold text-text-primary">
+      {payload}
+    </span>
+  );
+}
+
 export function TriviaForm({
   questions,
   teams,
@@ -51,6 +70,8 @@ export function TriviaForm({
   gateClosed = false,
   userId,
   maskedRecoveryEmail,
+  groupName,
+  peerRowsByQuestionId,
 }: {
   questions: readonly TriviaQuestionRow[];
   teams: readonly TeamOption[];
@@ -58,6 +79,14 @@ export function TriviaForm({
   gateClosed?: boolean;
   userId: string;
   maskedRecoveryEmail?: string | null;
+  /** Current group's display name, used in the peer-view popover header. */
+  groupName: string;
+  /**
+   * Peer rows per question. Keyed by `question_id`. The viewer + the
+   * `tegelikud tulemused` singleton are already excluded by the read seam
+   * (see `lib/peer-predictions/load-peer-predictions.ts`).
+   */
+  peerRowsByQuestionId: Record<string, PeerRow<TriviaPeerAnswer>[]>;
 }) {
   const [state, formAction, pending] = useActionState(submitTrivia, initialState);
   const [answers, setAnswers] = useState<Record<number, string>>(() =>
@@ -89,15 +118,38 @@ export function TriviaForm({
         const isInt = q.answerShape === 'integer';
         const helpId =
           q.conditionalOnPosition !== null ? `${inputId}-help` : undefined;
+        const peerRows = peerRowsByQuestionId[q.id] ?? [];
+        const submittedCount = peerRows.filter(
+          (p) => p.submittedPayload !== null,
+        ).length;
+        const peerTotal = peerRows.length;
         return (
           <fieldset
             key={q.position}
             className="rounded-lg border border-border-default bg-surface-card p-4"
             aria-describedby={helpId}
           >
-            <legend className="px-1 text-sm font-medium text-text-primary">
-              Q{q.position}. {q.promptEt}
-            </legend>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <legend className="px-1 text-sm font-medium text-text-primary">
+                Q{q.position}. {q.promptEt}
+              </legend>
+              {peerTotal > 0 && (
+                <PeerViewPopover<TriviaPeerAnswer>
+                  groupName={groupName}
+                  peerRows={peerRows}
+                  renderPick={renderTriviaPick}
+                  size="row"
+                  trigger={
+                    <PeerViewTrigger
+                      n={submittedCount}
+                      m={peerTotal}
+                      size="row"
+                      ariaLabel={`Vaata kaaslaste vastuseid Q${q.position} kohta — ${submittedCount} kaaslast ${peerTotal}-st on vastanud`}
+                    />
+                  }
+                />
+              )}
+            </div>
             {q.conditionalOnPosition !== null && (
               <p id={helpId} className="mt-1 text-xs text-text-muted">
                 Q{q.position} avaneb, kui Q{q.conditionalOnPosition} on
