@@ -50,12 +50,14 @@ export function TriviaForm({
   disabled,
   gateClosed = false,
   userId,
+  maskedRecoveryEmail,
 }: {
   questions: readonly TriviaQuestionRow[];
   teams: readonly TeamOption[];
   disabled: boolean;
   gateClosed?: boolean;
   userId: string;
+  maskedRecoveryEmail?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(submitTrivia, initialState);
   const [answers, setAnswers] = useState<Record<number, string>>(() =>
@@ -175,6 +177,7 @@ export function TriviaForm({
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
+        maskedRecoveryEmail={maskedRecoveryEmail}
       />
     </form>
   );

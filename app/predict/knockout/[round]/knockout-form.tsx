@@ -142,6 +142,7 @@ export interface KnockoutFormProps {
   disabled: boolean;
   gateClosed?: boolean;
   userId: string;
+  maskedRecoveryEmail?: string | null;
 }
 
 export function KnockoutForm({
@@ -150,6 +151,7 @@ export function KnockoutForm({
   disabled,
   gateClosed = false,
   userId,
+  maskedRecoveryEmail,
 }: KnockoutFormProps) {
   const [state, formAction, pending] = useActionState(
     submitKnockoutPicks,
@@ -231,6 +233,7 @@ export function KnockoutForm({
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
+        maskedRecoveryEmail={maskedRecoveryEmail}
       />
     </form>
   );

@@ -48,6 +48,7 @@ export interface FinalFormProps {
   disabled: boolean;
   gateClosed?: boolean;
   userId: string;
+  maskedRecoveryEmail?: string | null;
 }
 
 export function FinalForm({
@@ -57,6 +58,7 @@ export function FinalForm({
   disabled,
   gateClosed = false,
   userId,
+  maskedRecoveryEmail,
 }: FinalFormProps) {
   const [state, formAction, pending] = useActionState(submitFinalPicks, initialState);
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
@@ -166,6 +168,7 @@ export function FinalForm({
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
+        maskedRecoveryEmail={maskedRecoveryEmail}
       />
     </form>
   );

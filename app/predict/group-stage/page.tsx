@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { scoreMatchPrediction } from '@/lib/scoring/match-score';
 import type { ResultCode } from '@/lib/scoring/types';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
@@ -200,11 +201,13 @@ export default async function GroupStagePage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [matches, gate, { playerName, isOperator }] = await Promise.all([
-    loadGroupMatches(tournamentId, userId),
-    isStageOpen(GROUP_STAGE_STAGE_CODE, tournamentId),
-    loadPlayerContext(userId),
-  ]);
+  const [matches, gate, { playerName, isOperator }, maskedRecoveryEmail] =
+    await Promise.all([
+      loadGroupMatches(tournamentId, userId),
+      isStageOpen(GROUP_STAGE_STAGE_CODE, tournamentId),
+      loadPlayerContext(userId),
+      getMaskedRecoveryEmailForUser(userId),
+    ]);
 
   return (
     <>
@@ -247,6 +250,7 @@ export default async function GroupStagePage() {
               disabled={!gate.open}
               gateClosed={!gate.open}
               userId={userId}
+              maskedRecoveryEmail={maskedRecoveryEmail}
             />
           </CardContent>
         </Card>

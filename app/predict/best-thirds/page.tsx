@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { user_best_thirds, users } from '@/db/schema';
@@ -68,11 +69,13 @@ export default async function BestThirdsPage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [picks, gate, { playerName, isOperator }] = await Promise.all([
-    loadCurrentPicks(userId, tournamentId),
-    isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId),
-    loadPlayerContext(userId),
-  ]);
+  const [picks, gate, { playerName, isOperator }, maskedRecoveryEmail] =
+    await Promise.all([
+      loadCurrentPicks(userId, tournamentId),
+      isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId),
+      loadPlayerContext(userId),
+      getMaskedRecoveryEmailForUser(userId),
+    ]);
 
   return (
     <>
@@ -116,6 +119,7 @@ export default async function BestThirdsPage() {
               disabled={!gate.open}
               gateClosed={!gate.open}
               userId={userId}
+              maskedRecoveryEmail={maskedRecoveryEmail}
             />
           </CardContent>
         </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { SubmitButton } from '@/components/submit-button';
@@ -9,8 +9,14 @@ import {
   type VerifyPinState,
   type VerifyPinError,
 } from '@/app/me/pin/verify-action';
+import {
+  requestPinResetAction,
+  type RequestPinResetError,
+  type RequestPinResetState,
+} from '@/app/me/pin/recovery/request-action';
 
-const initialState: VerifyPinState = {};
+const initialVerifyState: VerifyPinState = {};
+const initialResetState: RequestPinResetState = {};
 
 const ERROR_COPY: Record<VerifyPinError, string> = {
   no_session: 'Logi sisse uuesti.',
@@ -21,43 +27,64 @@ const ERROR_COPY: Record<VerifyPinError, string> = {
     'Liiga palju katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
 };
 
+const RESET_ERROR_COPY: Record<RequestPinResetError, string> = {
+  no_session: 'Logi sisse uuesti.',
+  no_user: 'Vali kõigepealt mängija.',
+  no_pin_set: 'Sul pole PIN-i seadistatud, taastamist pole vaja.',
+  no_recovery_email:
+    'Sul pole taastamise e-posti aadressi salvestatud — ei saa taastuslinki saata.',
+  email_send_failed:
+    'Kirja saatmine ebaõnnestus. Proovi mõne hetke pärast uuesti.',
+};
+
 export interface PinEntryModalProps {
   open: boolean;
   onClose?: () => void;
-  /**
-   * Forward-compat hook for S05 — the forgot-PIN attachment needs the
-   * user id to look up the masked recovery email. Not used in S02.
-   */
   userId: string;
+  /**
+   * Server-side masked recovery email for the currently selected user. If
+   * provided, the modal exposes the "Unustasid PIN-i?" recovery branch.
+   * Undefined / null hides the link (user hasn't enrolled in recovery).
+   */
+  maskedRecoveryEmail?: string | null;
 }
 
 /**
- * E03 S02 — PIN-entry modal.
+ * E03 S02 + S05 — PIN-entry modal.
  *
- * Reused everywhere a prediction-write surface needs to prompt for PIN. Mounts
- * only when `open` is true so escape-key handlers / focus traps don't leak.
- * Accessibility: `role="dialog"` + `aria-modal` + initial focus + Tab cycle
- * trap (NFR-8 / FE constitution §V).
+ * Mounts only when `open` is true so escape-key handlers / focus traps don't
+ * leak. Accessibility: `role="dialog"` + `aria-modal` + initial focus + Tab
+ * cycle trap (NFR-8 / FE constitution §V).
  *
- * Submits to `verifyPinAction`; on `{ ok: true }` the modal closes and the
- * router refreshes so the calling form can be re-submitted with the unlock
- * cookie now present.
+ * S05 attachment: the "Unustasid PIN-i?" link toggles a sub-panel that shows
+ * the masked recovery email + a button bound to `requestPinResetAction`. On
+ * success the panel renders the R-1 "check spam" nudge in Estonian.
  */
-export function PinEntryModal({ open, onClose, userId: _userId }: PinEntryModalProps) {
-  const [state, formAction, pending] = useActionState(verifyPinAction, initialState);
+export function PinEntryModal({
+  open,
+  onClose,
+  userId: _userId,
+  maskedRecoveryEmail,
+}: PinEntryModalProps) {
+  const [verifyState, verifyFormAction, verifyPending] = useActionState(
+    verifyPinAction,
+    initialVerifyState,
+  );
+  const [resetState, resetFormAction, resetPending] = useActionState(
+    requestPinResetAction,
+    initialResetState,
+  );
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus the PIN input as soon as the dialog mounts.
   useEffect(() => {
     if (!open) return;
-    // Defer to next tick so React has committed the DOM.
     const id = window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
   }, [open]);
 
-  // Trap Tab inside the dialog. Esc closes.
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyboardEvent) {
@@ -92,16 +119,24 @@ export function PinEntryModal({ open, onClose, userId: _userId }: PinEntryModalP
     return () => window.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  // On success, refresh the page so the unlock cookie is observed, then close.
+  // On verify success, refresh so the unlock cookie is observed, then close.
   useEffect(() => {
-    if (state.ok) {
+    if (verifyState.ok) {
       onClose?.();
       router.refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.ok]);
+  }, [verifyState.ok]);
+
+  // Reset recovery state when the modal opens again so a previous "couldn't
+  // send" toast doesn't leak into a fresh attempt.
+  useEffect(() => {
+    if (!open) setRecoveryOpen(false);
+  }, [open]);
 
   if (!open) return null;
+
+  const canRecover = !!maskedRecoveryEmail;
 
   return (
     <div
@@ -125,7 +160,7 @@ export function PinEntryModal({ open, onClose, userId: _userId }: PinEntryModalP
           salvestada.
         </p>
 
-        <form action={formAction} className="mt-4 space-y-4" noValidate>
+        <form action={verifyFormAction} className="mt-4 space-y-4" noValidate>
           <div>
             <label
               htmlFor="pin-modal-input"
@@ -147,13 +182,21 @@ export function PinEntryModal({ open, onClose, userId: _userId }: PinEntryModalP
             />
           </div>
 
-          {state.error && (
+          {verifyState.error && (
             <p role="alert" className="text-sm text-state-closed-text">
-              {ERROR_COPY[state.error]}
+              {ERROR_COPY[verifyState.error]}
             </p>
           )}
 
-          {/* TODO(S05): "Unustasid PIN-i?" link */}
+          {canRecover && !recoveryOpen && (
+            <button
+              type="button"
+              onClick={() => setRecoveryOpen(true)}
+              className="text-sm text-brand-green underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2"
+            >
+              Unustasid PIN-i?
+            </button>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -164,13 +207,63 @@ export function PinEntryModal({ open, onClose, userId: _userId }: PinEntryModalP
               Tühista
             </button>
             <SubmitButton
-              pendingOverride={pending}
+              pendingOverride={verifyPending}
               className="bg-brand-green hover:bg-brand-green-hover"
             >
               Kinnita
             </SubmitButton>
           </div>
         </form>
+
+        {canRecover && recoveryOpen && (
+          <div className="mt-5 border-t border-border-default pt-4">
+            {resetState.ok ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-text-primary">
+                  Saatsime taastuslingi su meilile{' '}
+                  <span className="font-semibold">
+                    ({resetState.maskedEmail ?? maskedRecoveryEmail})
+                  </span>
+                  .
+                </p>
+                <p className="text-sm text-text-muted">
+                  Kontrolli ka rämpsposti — esimesel korral võib see sinna
+                  sattuda. Link kehtib 30 minutit.
+                </p>
+              </div>
+            ) : (
+              <form action={resetFormAction} className="space-y-3">
+                <p className="text-sm text-text-body">
+                  Saadame taastuslingi su salvestatud aadressile{' '}
+                  <span className="font-semibold">{maskedRecoveryEmail}</span>.
+                </p>
+                {resetState.error && (
+                  <p
+                    role="alert"
+                    className="text-sm text-state-closed-text"
+                  >
+                    {RESET_ERROR_COPY[resetState.error]}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryOpen(false)}
+                    className="rounded border border-border-default px-3 py-2 text-sm text-text-primary"
+                  >
+                    Tagasi
+                  </button>
+                  <SubmitButton
+                    pendingOverride={resetPending}
+                    className="bg-brand-green hover:bg-brand-green-hover"
+                  >
+                    Saada taastuslink
+                  </SubmitButton>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

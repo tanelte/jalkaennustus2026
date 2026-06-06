@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, teams, user_teams, users } from '@/db/schema';
@@ -113,11 +114,18 @@ export default async function FinalPredictPage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [candidates, initialPicks, gate, { playerName, isOperator }] = await Promise.all([
+  const [
+    candidates,
+    initialPicks,
+    gate,
+    { playerName, isOperator },
+    maskedRecoveryEmail,
+  ] = await Promise.all([
     loadCandidateTeams(tournamentId),
     loadCurrentPicks(userId, tournamentId),
     isStageOpen(FINAL_STAGE_CODE, tournamentId),
     loadPlayerContext(userId),
+    getMaskedRecoveryEmailForUser(userId),
   ]);
 
   return (
@@ -173,6 +181,7 @@ export default async function FinalPredictPage() {
               gateClosed={!gate.open}
               slotsOrder={FINAL_SLOTS}
               userId={userId}
+              maskedRecoveryEmail={maskedRecoveryEmail}
             />
           </CardContent>
         </Card>

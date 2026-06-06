@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { questions, teams, user_questions, users } from '@/db/schema';
@@ -97,12 +98,14 @@ export default async function TriviaPage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [items, gate, teamOptions, { playerName, isOperator }] = await Promise.all([
-    loadQuestionsWithAnswers(userId, tournamentId),
-    isStageOpen(TRIVIA_STAGE_CODE, tournamentId),
-    loadTeams(tournamentId),
-    loadPlayerContext(userId),
-  ]);
+  const [items, gate, teamOptions, { playerName, isOperator }, maskedRecoveryEmail] =
+    await Promise.all([
+      loadQuestionsWithAnswers(userId, tournamentId),
+      isStageOpen(TRIVIA_STAGE_CODE, tournamentId),
+      loadTeams(tournamentId),
+      loadPlayerContext(userId),
+      getMaskedRecoveryEmailForUser(userId),
+    ]);
 
   return (
     <>
@@ -146,6 +149,7 @@ export default async function TriviaPage() {
               disabled={!gate.open}
               gateClosed={!gate.open}
               userId={userId}
+              maskedRecoveryEmail={maskedRecoveryEmail}
             />
           </CardContent>
         </Card>

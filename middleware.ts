@@ -21,7 +21,10 @@ import {
 const { auth } = NextAuth(authConfig);
 
 const CREDENTIALS_CALLBACK_PATH = '/api/auth/callback/credentials';
-const PUBLIC_PATH_PREFIXES = ['/login', '/groups/new', '/api/auth'];
+// `/pin/reset` is public (E03 S05): the email-delivered reset link must be
+// reachable without an active Group session — architecture I4. Both the
+// route itself and the Server Action submission live under this prefix.
+const PUBLIC_PATH_PREFIXES = ['/login', '/groups/new', '/api/auth', '/pin/reset'];
 const SELECT_USER_PATH = '/select-user';
 
 function extractIp(req: NextRequest): string {

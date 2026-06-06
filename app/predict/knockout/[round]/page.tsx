@@ -12,6 +12,7 @@ import {
   requireCurrentUserId,
 } from '@/lib/current-user';
 import { db } from '@/lib/db';
+import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, teams, user_games, users } from '@/db/schema';
@@ -126,11 +127,13 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [matches, gate, { playerName, isOperator }] = await Promise.all([
-    loadRoundMatches(tournamentId, round, userId),
-    isStageOpen(round, tournamentId),
-    loadPlayerContext(userId),
-  ]);
+  const [matches, gate, { playerName, isOperator }, maskedRecoveryEmail] =
+    await Promise.all([
+      loadRoundMatches(tournamentId, round, userId),
+      isStageOpen(round, tournamentId),
+      loadPlayerContext(userId),
+      getMaskedRecoveryEmailForUser(userId),
+    ]);
 
   return (
     <>
@@ -174,6 +177,7 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
               disabled={!gate.open}
               gateClosed={!gate.open}
               userId={userId}
+              maskedRecoveryEmail={maskedRecoveryEmail}
             />
           </CardContent>
         </Card>

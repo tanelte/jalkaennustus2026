@@ -30,6 +30,7 @@ export interface BestThirdsFormProps {
   disabled?: boolean;
   gateClosed?: boolean;
   userId: string;
+  maskedRecoveryEmail?: string | null;
 }
 
 export function BestThirdsForm({
@@ -37,6 +38,7 @@ export function BestThirdsForm({
   disabled = false,
   gateClosed = false,
   userId,
+  maskedRecoveryEmail,
 }: BestThirdsFormProps) {
   const [state, formAction, pending] = useActionState(submitBestThirds, initialState);
   const [selected, setSelected] = useState<Set<string>>(new Set(initialPicks));
@@ -135,6 +137,7 @@ export function BestThirdsForm({
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
+        maskedRecoveryEmail={maskedRecoveryEmail}
       />
     </form>
   );

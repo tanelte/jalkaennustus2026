@@ -199,6 +199,7 @@ export interface GroupStageFormProps {
   disabled: boolean;
   gateClosed?: boolean;
   userId: string;
+  maskedRecoveryEmail?: string | null;
 }
 
 export function GroupStageForm({
@@ -206,6 +207,7 @@ export function GroupStageForm({
   disabled,
   gateClosed = false,
   userId,
+  maskedRecoveryEmail,
 }: GroupStageFormProps) {
   const [state, formAction, pending] = useActionState(
     submitGroupStagePredictions,
@@ -317,6 +319,7 @@ export function GroupStageForm({
         open={pinModalOpen}
         onClose={() => setPinModalOpen(false)}
         userId={userId}
+        maskedRecoveryEmail={maskedRecoveryEmail}
       />
     </form>
   );
