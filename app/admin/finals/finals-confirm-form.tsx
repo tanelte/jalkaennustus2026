@@ -1,6 +1,9 @@
 'use client';
 
+import { Medal } from 'lucide-react';
 import { startTransition, useActionState, useMemo, useState } from 'react';
+
+import { SubmitButton } from '@/components/submit-button';
 import { confirmFinals, type ConfirmFinalsState } from './actions';
 import {
   FINAL_SLOTS,
@@ -22,6 +25,15 @@ const ERROR_COPY: Record<string, string> = {
   not_operator: 'Operaatori õigused puuduvad.',
   duplicate_team: 'Iga meeskonda saab valida ainult ühel kohal.',
   unknown_team: 'Üks valitud meeskondadest ei kuulu sellesse turniiri.',
+};
+
+// Mirror the player surface's medal tone (S05) so operator + player views are
+// visually aligned per UX §15.4 / §15.9.
+const MEDAL_TONE: Record<FinalSlot, string> = {
+  F1: 'text-yellow-500',
+  F2: 'text-gray-400',
+  F3: 'text-amber-700',
+  F4: 'text-text-muted',
 };
 
 export interface FinalsConfirmFormProps {
@@ -48,8 +60,8 @@ export function FinalsConfirmForm({
     };
   }, [picks]);
 
-  const submittable = !hasDuplicate && !pending;
   const allFilled = filled === FINAL_SLOTS.length;
+  const submittable = !hasDuplicate && !pending;
 
   return (
     <form
@@ -63,15 +75,25 @@ export function FinalsConfirmForm({
         // sidesteps that reset while keeping useActionState's `pending` accurate.
         startTransition(() => formAction(formData));
       }}
-      className="mt-2 space-y-4"
+      className="space-y-5"
       noValidate
     >
       <div className="space-y-3">
         {FINAL_SLOTS.map((slot) => {
           const inputId = `admin_${FORM_FIELD_PREFIX}${slot}`;
           return (
-            <div key={slot} className="flex flex-col gap-2 rounded border bg-white p-3">
-              <label htmlFor={inputId} className="text-sm font-medium text-gray-900">
+            <div
+              key={slot}
+              className="flex flex-col gap-2 rounded-lg border border-border-default bg-surface-card p-4"
+            >
+              <label
+                htmlFor={inputId}
+                className="flex items-center gap-2 text-sm font-medium text-text-primary"
+              >
+                <Medal
+                  aria-hidden="true"
+                  className={`h-4 w-4 ${MEDAL_TONE[slot]}`}
+                />
                 {FINAL_SLOT_LABELS_ET[slot]}
               </label>
               <select
@@ -79,7 +101,7 @@ export function FinalsConfirmForm({
                 name={`${FORM_FIELD_PREFIX}${slot}`}
                 value={picks[slot] ?? ''}
                 onChange={(e) => onPick(slot, e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                className="rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2"
               >
                 <option value="">— tühi (osaline komplekt) —</option>
                 {candidates.map((team) => (
@@ -93,46 +115,54 @@ export function FinalsConfirmForm({
         })}
       </div>
 
-      <p className="text-sm text-gray-600" aria-live="polite">
-        Täidetud: <strong>{filled} / {FINAL_SLOTS.length}</strong>
+      <p className="text-sm text-text-muted" aria-live="polite">
+        Täidetud:{' '}
+        <strong className="text-text-primary">
+          {filled} / {FINAL_SLOTS.length}
+        </strong>
         {!allFilled && (
-          <span className="ml-2 text-gray-500">
+          <span className="ml-2 text-text-muted">
             (saad salvestada ka osalise komplekti — ümberarvutus käivitub
             alles siis, kui kõik neli on täidetud)
           </span>
         )}
         {hasDuplicate && (
-          <span className="ml-2 text-red-700">
+          <span className="ml-2 text-state-closed-text">
             Sama meeskond on valitud mitmel kohal — palun paranda.
           </span>
         )}
       </p>
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
+        <p role="status" className="text-sm text-brand-green">
           Salvestatud.
           {typeof state.rescored === 'number' && (
-            <> Ümber arvutatud rividuid: <strong>{state.rescored}</strong>.</>
+            <>
+              {' '}
+              Ümber arvutatud rividuid:{' '}
+              <strong className="text-text-primary">{state.rescored}</strong>.
+            </>
           )}
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!submittable}
-        className="rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending
-          ? 'Salvestan…'
-          : allFilled
-          ? 'Kinnita ametlik komplekt'
-          : `Salvesta (${filled}/${FINAL_SLOTS.length})`}
-      </button>
+      <div className="flex justify-end pt-2">
+        <SubmitButton
+          pendingOverride={pending}
+          disabled={!submittable}
+          className="bg-brand-green hover:bg-brand-green-hover"
+          pendingLabel="Salvestab…"
+        >
+          {allFilled
+            ? 'Kinnita ametlik komplekt'
+            : `Salvesta (${filled}/${FINAL_SLOTS.length})`}
+        </SubmitButton>
+      </div>
     </form>
   );
 }

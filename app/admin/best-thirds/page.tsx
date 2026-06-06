@@ -1,4 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm';
+import { ListChecks } from 'lucide-react';
+
+import { SectionHeader } from '@/components/section-header';
+import { Card, CardContent } from '@/components/ui/card';
 import { db } from '@/lib/db';
 import { getSystemUserId } from '@/lib/system-user';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -28,24 +32,27 @@ export default async function AdminBestThirdsPage() {
   const existing = await loadOfficialLetters(systemUserId, tournamentId);
 
   return (
-    <article className="space-y-4">
-      <header>
-        <h2 className="text-xl font-semibold">Best-thirds kinnitus</h2>
-        <p className="mt-1 text-sm text-gray-600">
+    <section className="space-y-6">
+      <header className="space-y-2">
+        <SectionHeader icon={ListChecks} title="Best-thirds kinnitus" />
+        <p className="text-sm text-text-muted">
           Märgi ametlikud paremad kolmandad. Salvestada saab ühe haaval —
           tulemused arvutatakse ümber iga salvestuse järel. Kui kõik 8 on
           teada, on skoorimine lukus: õige tähe eest 8 punkti, vale eest 0.
         </p>
+        {existing.length > 0 && (
+          <p className="text-sm text-text-muted">
+            Praegune ametlik komplekt ({existing.length}/8):{' '}
+            <strong className="text-text-primary">{existing.join(', ')}</strong>
+          </p>
+        )}
       </header>
 
-      {existing.length > 0 && (
-        <p className="text-sm text-gray-700">
-          Praegune ametlik komplekt ({existing.length}/8):{' '}
-          <strong>{existing.join(', ')}</strong>
-        </p>
-      )}
-
-      <BestThirdsConfirmForm initialLetters={existing} />
-    </article>
+      <Card>
+        <CardContent className="p-5 sm:p-6">
+          <BestThirdsConfirmForm initialLetters={existing} />
+        </CardContent>
+      </Card>
+    </section>
   );
 }

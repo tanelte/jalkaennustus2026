@@ -1,4 +1,8 @@
 import { asc, eq } from 'drizzle-orm';
+import { HelpCircle } from 'lucide-react';
+
+import { SectionHeader } from '@/components/section-header';
+import { Card, CardContent } from '@/components/ui/card';
 import { db } from '@/lib/db';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { questions, teams } from '@/db/schema';
@@ -50,21 +54,25 @@ export default async function AdminTriviaPage() {
   const known = items.filter((q) => q.currentCorrect.length > 0).length;
 
   return (
-    <article className="space-y-4">
-      <header>
-        <h2 className="text-xl font-semibold">Trivia kinnitus</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Sisesta ametlikud vastused viiele küsimusele. Salvestada saab ka osaliselt
-          — punktid arvutatakse ümber iga salvestuse järel. Q5 skoorib ainult juhul,
-          kui Q4 on õige.
+    <section className="space-y-6">
+      <header className="space-y-2">
+        <SectionHeader icon={HelpCircle} title="Trivia kinnitus" />
+        <p className="text-sm text-text-muted">
+          Sisesta ametlikud vastused viiele küsimusele. Salvestada saab ka
+          osaliselt — punktid arvutatakse ümber iga salvestuse järel. Q5
+          skoorib ainult juhul, kui Q4 on õige.
+        </p>
+        <p className="text-sm text-text-muted">
+          Hetkel teada:{' '}
+          <strong className="text-text-primary">{known}</strong> / {items.length}
         </p>
       </header>
 
-      <p className="text-sm text-gray-700">
-        Hetkel teada: <strong>{known}</strong> / {items.length}
-      </p>
-
-      <TriviaConfirmForm questions={items} teams={teamOptions} />
-    </article>
+      <Card>
+        <CardContent className="p-5 sm:p-6">
+          <TriviaConfirmForm questions={items} teams={teamOptions} />
+        </CardContent>
+      </Card>
+    </section>
   );
 }

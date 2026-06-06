@@ -1,6 +1,8 @@
 'use client';
 
 import { startTransition, useActionState, useState } from 'react';
+
+import { SubmitButton } from '@/components/submit-button';
 import { confirmTriviaAnswers, type ConfirmTriviaState } from './actions';
 import { ANSWER_MAX_LEN } from '@/app/predict/trivia/constants';
 
@@ -28,6 +30,9 @@ export interface TeamOption {
   name_et: string;
 }
 
+const INPUT_BASE =
+  'mt-2 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+
 export function TriviaConfirmForm({
   questions,
   teams,
@@ -51,19 +56,25 @@ export function TriviaConfirmForm({
         // reset while keeping useActionState's `pending` accurate.
         startTransition(() => formAction(formData));
       }}
-      className="mt-4 space-y-4"
+      className="space-y-5"
       noValidate
     >
       {questions.map((q) => {
         const inputId = `official_${q.position}`;
         const isTeam = q.answerShape === 'team';
+        const helpId =
+          q.conditionalOnPosition !== null ? `${inputId}-help` : undefined;
         return (
-          <div key={q.position} className="rounded border p-4">
-            <label className="block font-medium" htmlFor={inputId}>
+          <fieldset
+            key={q.position}
+            className="rounded-lg border border-border-default bg-surface-card p-4"
+            aria-describedby={helpId}
+          >
+            <legend className="px-1 text-sm font-medium text-text-primary">
               Q{q.position}. {q.promptEt}
-            </label>
+            </legend>
             {q.conditionalOnPosition !== null && (
-              <p className="mt-1 text-xs text-gray-600">
+              <p id={helpId} className="mt-1 text-xs text-text-muted">
                 Skoorib ainult juhul, kui Q{q.conditionalOnPosition} on õige.
               </p>
             )}
@@ -75,7 +86,7 @@ export function TriviaConfirmForm({
                 onChange={(e) =>
                   setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
                 }
-                className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
+                className={INPUT_BASE}
               >
                 <option value="">(jätta tühjaks = veel teadmata)</option>
                 {teams.map((t) => (
@@ -94,32 +105,34 @@ export function TriviaConfirmForm({
                 onChange={(e) =>
                   setAnswers((prev) => ({ ...prev, [q.position]: e.target.value }))
                 }
-                className="mt-2 w-full rounded border border-gray-300 px-3 py-2"
+                className={INPUT_BASE}
                 placeholder="(jätta tühjaks = veel teadmata)"
               />
             )}
-          </div>
+          </fieldset>
         );
       })}
 
       {state.error && ERROR_COPY[state.error] && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-state-closed-text">
           {ERROR_COPY[state.error]}
         </p>
       )}
       {state.ok && (
-        <p role="status" className="text-sm text-green-700">
-          Salvestatud. Ümber arvutatud vastuseid: <strong>{state.rescored ?? 0}</strong>.
+        <p role="status" className="text-sm text-brand-green">
+          Salvestatud. Ümber arvutatud vastuseid:{' '}
+          <strong className="text-text-primary">{state.rescored ?? 0}</strong>.
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Salvestan…' : 'Kinnita ametlikud vastused'}
-      </button>
+      <div className="flex justify-end pt-2">
+        <SubmitButton
+          pendingOverride={pending}
+          className="bg-brand-green hover:bg-brand-green-hover"
+        >
+          Kinnita ametlikud vastused
+        </SubmitButton>
+      </div>
     </form>
   );
 }

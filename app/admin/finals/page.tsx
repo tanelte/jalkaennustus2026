@@ -1,4 +1,8 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
+import { Medal } from 'lucide-react';
+
+import { SectionHeader } from '@/components/section-header';
+import { Card, CardContent } from '@/components/ui/card';
 import { db } from '@/lib/db';
 import { getSystemUserId } from '@/lib/system-user';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
@@ -76,24 +80,28 @@ export default async function AdminFinalsPage() {
   const completeness = FINAL_SLOTS.filter((s) => existing[s]).length;
 
   return (
-    <article className="space-y-4">
-      <header>
-        <h2 className="text-xl font-semibold">Finaali kinnitus</h2>
-        <p className="mt-1 text-sm text-gray-600">
+    <section className="space-y-6">
+      <header className="space-y-2">
+        <SectionHeader icon={Medal} title="Finaali kinnitus" />
+        <p className="text-sm text-text-muted">
           Märgi ametlikud medalivõitjad: F1 (kuld), F2 (hõbe), F3 (pronks),
           F4 (neljas koht). Punktid arvutatakse ümber alles siis, kui kõik
           neli kohta on täidetud — kuni selle hetkeni võid salvestada osalise
           komplekti. Iga meeskond saab esineda ainult ühel kohal.
         </p>
+        {completeness > 0 && (
+          <p className="text-sm text-text-muted">
+            Praegu täidetud kohti:{' '}
+            <strong className="text-text-primary">{completeness}/4</strong>.
+          </p>
+        )}
       </header>
 
-      {completeness > 0 && (
-        <p className="text-sm text-gray-700">
-          Praegu täidetud kohti: <strong>{completeness}/4</strong>.
-        </p>
-      )}
-
-      <FinalsConfirmForm initialOfficial={existing} candidates={candidates} />
-    </article>
+      <Card>
+        <CardContent className="p-5 sm:p-6">
+          <FinalsConfirmForm initialOfficial={existing} candidates={candidates} />
+        </CardContent>
+      </Card>
+    </section>
   );
 }
