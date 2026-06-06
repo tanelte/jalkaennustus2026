@@ -6,6 +6,7 @@ function makeDeps(overrides: Partial<HomeDataDeps> = {}): HomeDataDeps {
     loadPlayerName: vi.fn(async () => 'Mart'),
     loadOpenStages: vi.fn(async () => []),
     loadUpcomingStages: vi.fn(async () => []),
+    loadClosedStages: vi.fn(async () => []),
     loadStageProgress: vi.fn(async () => ({
       submitted: 0,
       expected: 8,

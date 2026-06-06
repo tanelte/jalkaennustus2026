@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  filterClosedWindows,
   filterOpenWindows,
   filterUpcomingWindows,
+  getClosedStages,
   getOpenStages,
   getUpcomingStages,
   type StageRow,
@@ -80,6 +82,52 @@ describe('getUpcomingStages', () => {
     });
     expect(findStages).toHaveBeenCalledWith('t-1');
     expect(out.map((r) => r.code)).toEqual(['best_thirds']);
+  });
+});
+
+describe('filterClosedWindows', () => {
+  it('returns no rows before any window closes', () => {
+    expect(filterClosedWindows(ROWS, new Date('2026-05-31T00:00:00Z'))).toHaveLength(0);
+  });
+
+  it('returns pre-kickoff stages once their close timestamp is past', () => {
+    const out = filterClosedWindows(ROWS, new Date('2026-06-20T00:00:00Z'));
+    expect(out.map((r) => r.code)).toEqual(['trivia', 'group_matches']);
+  });
+
+  it('orders most-recently-closed first', () => {
+    const mixed: StageRow[] = [
+      {
+        code: 'trivia',
+        position: 1,
+        opens_at: new Date('2026-06-01T00:00:00Z'),
+        closes_at: new Date('2026-06-11T12:00:00Z'),
+      },
+      {
+        code: 'group_matches',
+        position: 2,
+        opens_at: new Date('2026-06-01T00:00:00Z'),
+        closes_at: new Date('2026-06-11T16:00:00Z'),
+      },
+    ];
+    const out = filterClosedWindows(mixed, new Date('2026-06-12T00:00:00Z'));
+    expect(out.map((r) => r.code)).toEqual(['group_matches', 'trivia']);
+  });
+
+  it('treats closes_at === now as still-open (not closed)', () => {
+    expect(filterClosedWindows(ROWS, ROWS[0]!.closes_at)).toHaveLength(0);
+  });
+});
+
+describe('getClosedStages', () => {
+  it('delegates to findStages and applies the closed filter', async () => {
+    const findStages = vi.fn(async () => ROWS);
+    const out = await getClosedStages('t-1', {
+      findStages,
+      now: () => new Date('2026-06-27T00:00:00Z'),
+    });
+    expect(findStages).toHaveBeenCalledWith('t-1');
+    expect(out.map((r) => r.code)).toEqual(['best_thirds', 'trivia', 'group_matches']);
   });
 });
 

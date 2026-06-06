@@ -7,16 +7,17 @@ import {
   CheckCircle,
   Clock,
   Crown,
+  Lock,
   Trophy,
 } from 'lucide-react';
 
+import { ClosedWindowRow } from '@/components/closed-window-row';
 import { HeroGreeting } from '@/components/hero-greeting';
 import { HistoryRow } from '@/components/history-row';
 import { OpenWindowCard } from '@/components/open-window-card';
 import { PodiumRow } from '@/components/podium-row';
 import { RoastTile } from '@/components/roast-tile';
 import { SectionHeader } from '@/components/section-header';
-import { StandingCard } from '@/components/standing-card';
 import { StatCard } from '@/components/stat-card';
 import { TopBar } from '@/components/top-bar';
 import { Card } from '@/components/ui/card';
@@ -150,9 +151,9 @@ export default async function Home() {
           )}
         </section>
 
-        {/* 2-up: Tulekul + StandingCard */}
+        {/* 2-up: Tulekul + Suletud aknad */}
         <section
-          aria-label="Tulekul ja sinu seis"
+          aria-label="Tulekul ja suletud aknad"
           className="grid grid-cols-1 gap-4 lg:grid-cols-2"
         >
           <Card className="p-5">
@@ -170,10 +171,20 @@ export default async function Home() {
             )}
           </Card>
 
-          <StandingCard
-            currentScore={data.currentScore}
-            href="/leaderboard"
-          />
+          <Card className="p-5">
+            <SectionHeader icon={Lock} title="Suletud aknad" />
+            {data.closedWindows.length === 0 ? (
+              <p className="mt-3 text-sm text-text-muted">
+                Veel ühtegi akent pole suletud.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-border-default">
+                {data.closedWindows.map((window) => (
+                  <ClosedWindowRow key={window.code} window={window} />
+                ))}
+              </ul>
+            )}
+          </Card>
         </section>
 
         {/* 2-up: Sinu ajalugu + Cross-tournament podium */}
