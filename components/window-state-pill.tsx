@@ -1,3 +1,4 @@
+import { AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import type { StageGateResult } from '@/lib/stages/is-stage-open';
 
 export interface WindowStatePillProps {
@@ -15,20 +16,25 @@ function fmt(date: Date | undefined): string {
   return DATE_FORMATTER.format(date);
 }
 
+const PILL_BASE =
+  'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium';
+
 /**
- * UX spec §8.1 — window-state pill rendered at the top of every `/predict/*`
+ * UX spec §16.1 — window-state pill rendered at the top of every `/predict/*`
  * page. Text always carries the state for screen-reader / colour-blind users;
- * colour is purely an accent.
+ * colour and the lucide icon are accents. Accessibility per §18:
+ *   - open / not_yet / closed → `role="status"` (polite live region)
+ *   - not_found / error      → `role="alert"` (assertive)
  */
 export function WindowStatePill({ gate }: WindowStatePillProps) {
   if (gate.open) {
     return (
       <p
         role="status"
-        className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-sm text-green-900"
+        className={`${PILL_BASE} bg-brand-green-soft text-brand-green`}
       >
-        <span aria-hidden="true">🟢</span>
-        <span className="font-medium uppercase tracking-wide">Avatud</span>
+        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+        <span className="uppercase tracking-wide">Avatud</span>
         <span>— sulgub {fmt(gate.closesAt)}</span>
       </p>
     );
@@ -38,10 +44,10 @@ export function WindowStatePill({ gate }: WindowStatePillProps) {
     return (
       <p
         role="status"
-        className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-red-50 px-3 py-1 text-sm text-red-900"
+        className={`${PILL_BASE} bg-state-closed-bg text-state-closed-text`}
       >
-        <span aria-hidden="true">🔴</span>
-        <span className="font-medium uppercase tracking-wide">Suletud</span>
+        <XCircle aria-hidden="true" className="h-4 w-4" />
+        <span className="uppercase tracking-wide">Suletud</span>
         <span>— aken sulgus {fmt(gate.closesAt)}</span>
       </p>
     );
@@ -51,10 +57,10 @@ export function WindowStatePill({ gate }: WindowStatePillProps) {
     return (
       <p
         role="status"
-        className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900"
+        className={`${PILL_BASE} bg-state-upcoming-bg text-state-upcoming-text`}
       >
-        <span aria-hidden="true">⏳</span>
-        <span className="font-medium uppercase tracking-wide">Ei ole veel avatud</span>
+        <Clock aria-hidden="true" className="h-4 w-4" />
+        <span className="uppercase tracking-wide">Ei ole veel avatud</span>
         <span>— avaneb {fmt(gate.opensAt)}</span>
       </p>
     );
@@ -63,10 +69,10 @@ export function WindowStatePill({ gate }: WindowStatePillProps) {
   return (
     <p
       role="alert"
-      className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-900"
+      className={`${PILL_BASE} bg-state-error-bg text-state-error-text`}
     >
-      <span aria-hidden="true">⚠️</span>
-      <span>Etappi ei leitud — võta ühendust korraldajaga.</span>
+      <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+      <span>Etappi ei leitud. Võta ühendust korraldajaga.</span>
     </p>
   );
 }
