@@ -1,3 +1,96 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* -----------------------------------------------------------------------------
+ * Design tokens (UX design specification §13)
+ * Source of truth for color, typography, radius, elevation, focus ring.
+ * Tailwind theme entries mirror these via var(--token-name) in tailwind.config.ts.
+ * Light theme only this story (S01); the variable layer is structured so a
+ * future dark theme can swap values here without touching components.
+ * --------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    /* §13.1 Color — semantic tokens (light) */
+    --bg-app: #f7f8f7;
+    --surface-card: #ffffff;
+    --surface-card-dark: #0f1b17;
+    --border-default: #e6e8e6;
+    --border-strong: #d0d5d2;
+    --text-primary: #0e1411;
+    --text-body: #2a3531;
+    --text-muted: #6b7672;
+    --text-on-dark: #f4f6f4;
+    --text-on-dark-muted: #9ba8a2;
+    --brand-green: #16a34a;
+    --brand-green-hover: #15803d;
+    --brand-green-soft: #e7f5ec;
+
+    /* §13.1 State pills — bg / text pairs */
+    --state-open-bg: var(--brand-green-soft);
+    --state-open-text: var(--brand-green);
+    --state-closed-bg: #fee7e7;
+    --state-closed-text: #b91c1c;
+    --state-upcoming-bg: #fef3cd;
+    --state-upcoming-text: #b45309;
+    --state-error-bg: #e6e8e6;
+    --state-error-text: #374151;
+
+    /* §13.4 Radius */
+    --radius-sm: 0.25rem; /* 4px */
+    --radius-md: 0.375rem; /* 6px */
+    --radius-lg: 0.5rem; /* 8px */
+    --radius-xl: 0.75rem; /* 12px */
+    --radius-2xl: 1rem; /* 16px */
+    --radius-full: 9999px;
+
+    /* §13.5 Elevation */
+    --shadow-card-dark:
+      0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 24px rgba(0, 0, 0, 0.06);
+
+    /* §13.6 Focus ring */
+    --focus-ring-color: var(--brand-green);
+
+    /* -------------------------------------------------------------------------
+     * shadcn/ui base tokens (new-york style, neutral base color).
+     * Namespaced separately from our UX §13 tokens — they coexist without
+     * collisions because our names are kebab-cased semantic (`--bg-app`) and
+     * shadcn's are single-word HSL channel tuples (`--background`, `--ring`).
+     * Component code consumes UX tokens directly via the Tailwind theme; the
+     * shadcn block exists so primitives under `components/ui/` keep working
+     * with their stock styles until each primitive is themed in a later story.
+     * --------------------------------------------------------------------- */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-body);
+  }
+
+  /* Apply tabular-nums on the helper class so numeric values align across rows. */
+  .tabular-nums {
+    font-feature-settings: 'tnum';
+  }
+}
