@@ -12,7 +12,7 @@ const ERROR_COPY: Record<string, string> = {
   no_session: 'Logi sisse uuesti.',
   not_operator: 'Operaatori õigused puuduvad.',
   invalid_position: 'Vormi viga — proovi uuesti.',
-  invalid_integer: 'Numbrilist vastust ootab täisarvu.',
+  invalid_integer: 'Numbriline vastus peab olema täisarv.',
   invalid_team: 'Vastus peab olema üks turniiri riikidest.',
   too_long: 'Vastus on liiga pikk.',
 };

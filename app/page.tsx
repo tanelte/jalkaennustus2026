@@ -94,7 +94,7 @@ export default async function Home() {
         />
 
         {/* 4-up stat cards */}
-        <section aria-label="Sinu number ülevaade">
+        <section aria-label="Sinu numbriline ülevaade">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
             <StatCard
               icon={Calendar}

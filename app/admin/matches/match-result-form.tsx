@@ -106,7 +106,7 @@ export function MatchResultForm(props: MatchResultFormProps) {
         value={scoreAway}
         onChange={(e) => setScoreAway(e.target.value)}
         className="w-16 tabular-nums"
-        aria-label="Võõrsil meeskonna skoor"
+        aria-label="Külalismeeskonna skoor"
       />
       <label className="flex items-center gap-1">
         <span className="sr-only">Staatus</span>

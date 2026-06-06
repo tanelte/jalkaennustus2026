@@ -36,7 +36,7 @@ export default async function AdminBestThirdsPage() {
       <header className="space-y-2">
         <SectionHeader as="h1" icon={ListChecks} title="Best-thirds kinnitus" />
         <p className="text-sm text-text-muted">
-          Märgi ametlikud paremad kolmandad. Salvestada saab ühe haaval —
+          Märgi ametlikud paremad kolmandad. Salvestada saab ükshaaval —
           tulemused arvutatakse ümber iga salvestuse järel. Kui kõik 8 on
           teada, on skoorimine lukus: õige tähe eest 8 punkti, vale eest 0.
         </p>

@@ -55,8 +55,8 @@ const ERROR_COPY: Record<string, string> = {
 const OPTION_LABELS: Record<KnockoutPredictionCode, string> = {
   '1A': 'kodumeeskond — normaalaeg',
   '1B': 'kodumeeskond — lisaaeg / penaltid',
-  '2A': 'võõrsil meeskond — normaalaeg',
-  '2B': 'võõrsil meeskond — lisaaeg / penaltid',
+  '2A': 'külalismeeskond — normaalaeg',
+  '2B': 'külalismeeskond — lisaaeg / penaltid',
 };
 
 function formatKickoff(iso: string): string {

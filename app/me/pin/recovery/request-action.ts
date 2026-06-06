@@ -120,7 +120,7 @@ export async function requestPinResetAction(
   const origin = await resolveOrigin();
   const link = `${origin}/pin/reset/${issued.rawToken}`;
 
-  const subject = 'Lähtesta oma Jalkaennustus PIN';
+  const subject = 'Lähtesta oma Jalkaennustuse PIN';
   const body = [
     'Tere!',
     '',

@@ -20,7 +20,7 @@ const ADMIN_TILES: ReadonlyArray<{
     href: '/admin/matches',
     title: 'Mängude tulemused',
     description:
-      'Sisesta või paranda kodumeeskonna ja võõrsil meeskonna skoore. Knockoutmängudel märgi ka lõpetus.',
+      'Sisesta või paranda kodumeeskonna ja külalismeeskonna skoore. Knockoutmängudel märgi ka lõpetus.',
     icon: Trophy,
   },
   {

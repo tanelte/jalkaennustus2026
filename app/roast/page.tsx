@@ -45,8 +45,8 @@ export default async function RoastPage() {
           <p className="font-medium">Roast avaneb pärast finaali.</p>
           <p className="mt-2 text-sm">
             Kui finaali tulemus on sees, koondame siin sinu turniiri parima
-            ennustuse, mängud kus ainult sina pakkusid valesti, mängud mille
-            kogu grupp valesti pakkus, ning ennustused kus sina olid grupis
+            ennustuse, mängud, kus ainult sina pakkusid valesti, mängud, mille
+            kogu grupp valesti pakkus, ning ennustused, kus sina olid grupis
             ainus, kes õigesti pakkus.
           </p>
         </section>

@@ -144,7 +144,7 @@ export function FinalsConfirmForm({
           {typeof state.rescored === 'number' && (
             <>
               {' '}
-              Ümber arvutatud rividuid:{' '}
+              Ümber arvutatud ennustusi:{' '}
               <strong className="text-text-primary">{state.rescored}</strong>.
             </>
           )}

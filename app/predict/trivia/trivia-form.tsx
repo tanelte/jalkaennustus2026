@@ -23,7 +23,7 @@ const ERROR_COPY: Record<string, string> = {
   invalid_count: 'Täida kõik viis vastust.',
   invalid_position: 'Vormi viga — proovi uuesti.',
   empty_answer: 'Iga vastus peab olema täidetud.',
-  invalid_integer: 'Numbrilist vastust ootab täisarvu.',
+  invalid_integer: 'Numbriline vastus peab olema täisarv.',
   invalid_team: 'Vastus peab olema üks turniiri riikidest.',
   too_long: 'Vastus on liiga pikk.',
   unknown_question: 'Trivia küsimusi ei leitud — võta ühendust korraldajaga.',

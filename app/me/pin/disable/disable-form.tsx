@@ -22,7 +22,7 @@ export function DisablePinForm() {
   return (
     <form action={formAction} className="space-y-5" noValidate>
       <p className="text-sm text-text-muted">
-        PIN väljalülitamisel kustutatakse ka su taastusmeil. Edaspidi muutub
+        PIN-i väljalülitamisel kustutatakse ka su taastusmeil. Edaspidi muutub
         PIN-i taastamine võimatuks, kuni lülitad PIN-i uuesti sisse.
       </p>
 

@@ -18,6 +18,10 @@ import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments
 import { games, teams, user_games, users } from '@/db/schema';
 import { KnockoutForm, type KnockoutMatchView } from './knockout-form';
 import { ROUND_LABELS_ET, isKnockoutRound, type KnockoutRound } from './constants';
+import {
+  KNOCKOUT_EXACT_POINTS_BY_STAGE,
+  KNOCKOUT_WINNER_POINTS_BY_STAGE,
+} from '@/lib/scoring/weights';
 import { loadAllKnockoutPeerRowsForSlots } from '@/lib/peer-predictions/load-knockout-payloads';
 import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payloads';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
@@ -178,8 +182,10 @@ export default async function KnockoutRoundPage({ params }: PageProps) {
           </h1>
           <p className="mt-1 text-sm text-text-muted">
             Iga mängu kohta vali võitja meeskond ja kuidas võit saavutati
-            (normaalaeg või lisaaeg/penaltid). Õige meeskond + õige režiim
-            annab täispunktid, õige meeskond aga vale režiim poole punktidest.
+            (normaalaeg või lisaaeg/penaltid). Õige meeskond + õige lõpp
+            annab <strong>{KNOCKOUT_EXACT_POINTS_BY_STAGE[round]} punkti</strong>,
+            õige meeskond aga vale lõpp{' '}
+            <strong>{KNOCKOUT_WINNER_POINTS_BY_STAGE[round]} punkti</strong>.
           </p>
         </header>
 
