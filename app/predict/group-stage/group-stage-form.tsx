@@ -77,6 +77,12 @@ function teamLabelForCode(
   return `${team.name_et} võit ${margin}`;
 }
 
+// Tight secondary caption for the chip: margin only (full label is in aria).
+function shortCaptionForCode(code: GroupStagePredictionCode): string {
+  if (code === 'X') return 'viik';
+  return code[1] === 'A' ? '1–2' : '3+';
+}
+
 interface MatchRowProps {
   match: GroupStageMatchView;
   pick: GroupStagePredictionCode | null;
@@ -113,16 +119,19 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
       </div>
 
       <div
-        className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-5"
+        className="mt-3 grid grid-cols-5 gap-1 text-sm"
         role="radiogroup"
         aria-label={`${homeTeam.name_et} vs ${awayTeam.name_et}`}
       >
         {GROUP_STAGE_PREDICTION_CODES.map((code) => {
           const checked = pick === code;
+          const fullLabel = teamLabelForCode(code, homeTeam, awayTeam);
           return (
             <label
               key={code}
-              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 py-1.5 text-center text-xs transition-colors ${
+              title={fullLabel}
+              aria-label={fullLabel}
+              className={`flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-md border px-1 py-1.5 text-center transition-colors ${
                 checked
                   ? 'border-brand-green bg-brand-green text-white'
                   : 'border-border-default bg-surface-card text-text-body hover:border-brand-green/40'
@@ -136,7 +145,16 @@ function MatchRow({ match, pick, onPick, disabled }: MatchRowProps) {
                 onChange={() => onPick(match.id, code)}
                 className="sr-only"
               />
-              <span>{teamLabelForCode(code, homeTeam, awayTeam)}</span>
+              <span className="text-sm font-bold leading-none tabular-nums">
+                {code}
+              </span>
+              <span
+                className={`mt-0.5 text-[10px] leading-tight ${
+                  checked ? 'text-white/85' : 'text-text-muted'
+                }`}
+              >
+                {shortCaptionForCode(code)}
+              </span>
               <span className="sr-only">{GROUP_STAGE_OPTION_MODE_LABELS[code]}</span>
             </label>
           );
