@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AppFooter } from '@/components/app-footer';
+import { BfcacheRefresh } from '@/components/bfcache-refresh';
 import './globals.css';
 
 // §13.2 Typography — Inter variable font, Estonian glyph support via latin-ext.
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="et" className={inter.variable}>
       <body className="min-h-screen flex flex-col font-sans bg-bg-app text-text-body">
+        <BfcacheRefresh />
         <div className="flex-1">{children}</div>
         <AppFooter />
       </body>

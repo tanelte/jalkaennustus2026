@@ -1,6 +1,7 @@
 'use server';
 
 import { and, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { getCurrentUserId } from '@/lib/current-user';
 import { db } from '@/lib/db';
@@ -138,6 +139,9 @@ export async function saveKnockoutPick(
     group_id: session.user.group_id,
     game_id: gameId,
   });
+
+  revalidatePath('/');
+  revalidatePath('/leaderboard');
 
   return { ok: true };
 }
