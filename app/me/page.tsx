@@ -126,6 +126,25 @@ export default async function MePage() {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Liitu teise grupiga</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <p>
+              Kui soovid liituda ka mõne teise ennustusgrupiga, siis lisa end
+              siit selle liikmeks. Edaspidi saad sellesse gruppi tavapäraselt
+              sisse logida.
+            </p>
+            <Link
+              href="/me/join-group"
+              className="inline-block rounded border px-4 py-2 text-sm font-medium"
+            >
+              Liitu grupiga
+            </Link>
+          </CardContent>
+        </Card>
       </main>
     </>
   );
