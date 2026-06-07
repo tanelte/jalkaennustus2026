@@ -122,7 +122,7 @@ export function TriviaForm({
         <EditUnlockBanner onUnlockClick={() => setPinModalOpen(true)} />
       )}
 
-      <div className="sticky top-16 z-10 -mx-4 flex flex-wrap items-center justify-end gap-2 bg-bg-app px-4 py-2 shadow-[0_4px_8px_-6px_rgba(0,0,0,0.12)] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-16 z-10 -mx-4 flex flex-wrap items-center justify-end gap-2 bg-white px-4 py-2 shadow-[0_4px_8px_-6px_rgba(0,0,0,0.12)] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <SaveStatusIndicator
           status={autosave.status}
           lastSavedAt={autosave.lastSavedAt}
