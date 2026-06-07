@@ -1,10 +1,10 @@
 'use client';
 
-import { ChevronDown, KeyRound } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { EditUnlockBanner } from '@/components/pin/edit-unlock-banner';
 import { PinEntryModal } from '@/components/pin/pin-entry-modal';
 import { SaveStatusIndicator } from '@/components/save-status-indicator';
 import { useAutoSave } from '@/lib/hooks/use-autosave';
@@ -315,6 +315,10 @@ export function GroupStageForm({
 
   return (
     <div className="space-y-4">
+      {mode === 'pending-unlock' && (
+        <EditUnlockBanner onUnlockClick={() => setPinModalOpen(true)} />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-text-muted" aria-live="polite">
           Esitatud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
@@ -368,26 +372,14 @@ export function GroupStageForm({
         })}
       </div>
 
-      {mode !== 'edit' && (
+      {mode === 'closed' && (
         <div className="flex justify-end pt-2">
-          {mode === 'closed' ? (
-            <Badge
-              variant="outline"
-              className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
-            >
-              Suletud
-            </Badge>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => setPinModalOpen(true)}
-              aria-label="Sisesta PIN, et alustada muutmist"
-              className="bg-brand-green hover:bg-brand-green-hover"
-            >
-              <KeyRound aria-hidden="true" />
-              Muuda
-            </Button>
-          )}
+          <Badge
+            variant="outline"
+            className="border-state-closed-text bg-state-closed-bg text-state-closed-text"
+          >
+            Suletud
+          </Badge>
         </div>
       )}
 
