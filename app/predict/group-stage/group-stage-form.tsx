@@ -319,7 +319,7 @@ export function GroupStageForm({
         <EditUnlockBanner onUnlockClick={() => setPinModalOpen(true)} />
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="sticky top-16 z-10 -mx-4 flex flex-wrap items-center justify-between gap-2 bg-bg-app px-4 py-2 shadow-[0_4px_8px_-6px_rgba(0,0,0,0.12)] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <p className="text-sm text-text-muted" aria-live="polite">
           Esitatud: <strong className="text-text-primary">{pickedCount}</strong>{' '}
           / {totalCount}
