@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import Link from 'next/link';
 import { XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,15 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-text-muted">
         Sa pead teadma oma liiga jagatud parooli.
+      </p>
+      <p className="text-center text-sm text-text-muted">
+        Pole veel gruppi?{' '}
+        <Link
+          href="/groups/new"
+          className="font-medium text-brand-green underline-offset-2 hover:underline"
+        >
+          Lisa uus grupp
+        </Link>
       </p>
     </form>
   );
