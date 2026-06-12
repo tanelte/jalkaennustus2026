@@ -212,7 +212,13 @@ export default async function GroupStagePage() {
       getMaskedRecoveryEmailForUser(userId),
     ]);
 
-  const editMode = await resolveEditMode({ userId, stageGate: gate });
+  // HACK: TEMP-RAX-MEHED — remove after Rax enters his group-stage picks
+  const effectiveGate =
+    playerName === 'Rax' && session.user.username === 'mehed'
+      ? ({ open: true } as const)
+      : gate;
+
+  const editMode = await resolveEditMode({ userId, stageGate: effectiveGate });
 
   // E04-S01 — peer-predictions view. One batched query across every match in
   // view; per-match results are passed into the existing client form so its
