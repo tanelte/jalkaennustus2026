@@ -31,9 +31,19 @@ import {
 import {
   GroupStageForm,
   type GroupStageMatchView,
+  type MatchKickoffWindow,
   type MatchResultView,
   type TeamView,
 } from './group-stage-form';
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function classifyKickoff(kickoffAt: Date, now: number): MatchKickoffWindow {
+  const delta = kickoffAt.getTime() - now;
+  if (delta < -TWENTY_FOUR_HOURS_MS) return 'past';
+  if (delta > TWENTY_FOUR_HOURS_MS) return 'future';
+  return 'near';
+}
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Grupimängud — Jalkaennustus' };
@@ -88,6 +98,8 @@ async function loadGroupMatches(
     .orderBy(asc(games.kickoff_at), asc(games.round_label));
 
   if (gameRows.length === 0) return [];
+
+  const now = Date.now();
 
   const teamIds = Array.from(
     new Set(
@@ -184,6 +196,7 @@ async function loadGroupMatches(
       awayTeam: awayTeam satisfies TeamView,
       currentPrediction,
       result,
+      kickoffWindow: classifyKickoff(g.kickoff_at, now),
     });
   }
 

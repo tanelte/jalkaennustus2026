@@ -38,6 +38,8 @@ export interface MatchResultView {
   outcome: 'exact' | 'winner' | 'miss' | null;
 }
 
+export type MatchKickoffWindow = 'past' | 'near' | 'future';
+
 export interface GroupStageMatchView {
   id: string;
   groupLetter: GroupLetter;
@@ -48,6 +50,7 @@ export interface GroupStageMatchView {
   awayTeam: TeamView;
   currentPrediction: GroupStagePredictionCode | null;
   result: MatchResultView | null;
+  kickoffWindow: MatchKickoffWindow;
 }
 
 const ERROR_COPY: Record<string, string> = {
@@ -151,8 +154,17 @@ function MatchRow({
   ).length;
   const peerTotal = peerRows.length;
 
+  const bgClass =
+    match.kickoffWindow === 'past'
+      ? 'bg-gray-100'
+      : match.kickoffWindow === 'near'
+        ? 'bg-yellow-50'
+        : 'bg-surface-card';
+
   return (
-    <fieldset className="rounded-lg border border-border-default bg-surface-card p-3">
+    <fieldset
+      className={`rounded-lg border border-border-default ${bgClass} p-3`}
+    >
       <legend className="flex flex-wrap items-center gap-2 px-1 text-xs uppercase tracking-wide text-text-muted">
         <span>
           {match.roundLabel} — {formatKickoff(match.kickoffAt)}
