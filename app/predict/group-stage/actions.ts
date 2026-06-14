@@ -9,7 +9,7 @@ import { log } from '@/lib/log';
 import { assertEditAllowedForUser } from '@/lib/pin/guard';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
-import { games, user_games, users } from '@/db/schema';
+import { games, user_games } from '@/db/schema';
 import {
   GROUP_STAGE_STAGE_CODE,
   isGroupStagePredictionCode,
@@ -52,18 +52,9 @@ export async function saveGroupStagePick(
 
   const tournamentId = await getCurrentTournamentId();
 
-  // HACK: TEMP-RAX-MEHED — remove after Rax enters his group-stage picks
-  const userRows = await db
-    .select({ username: users.username })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const rax_mehed_bypass =
-    userRows[0]?.username === 'Rax' && session.user.username === 'mehed';
-
   // Constitution Rule 5: stage-window check happens server-side BEFORE any write.
   const gate = await isStageOpen(GROUP_STAGE_STAGE_CODE, tournamentId);
-  if (!gate.open && !rax_mehed_bypass) {
+  if (!gate.open) {
     log.warn({
       operation: 'save_group_stage_pick',
       outcome: 'rejected',
