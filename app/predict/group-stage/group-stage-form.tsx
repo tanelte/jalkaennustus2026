@@ -13,6 +13,7 @@ import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 import type { GroupStagePeerPick } from '@/lib/peer-predictions/load-group-stage-payloads';
+import { formatKickoff } from '@/lib/format/kickoff';
 import { saveGroupStagePick } from './actions';
 import {
   GROUP_LETTERS,
@@ -64,15 +65,6 @@ const ERROR_COPY: Record<string, string> = {
     'Liiga palju vale PIN-i katseid. Proovi mõne minuti pärast (või kasuta "Unustasid PIN-i?").',
   network_error: 'Võrguviga — proovi uuesti.',
 };
-
-function formatKickoff(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mn = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${dd}.${mm} ${hh}:${mn} UTC`;
-}
 
 function teamLabelForCode(
   code: GroupStagePredictionCode,

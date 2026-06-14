@@ -12,6 +12,7 @@ import { PeerViewPopover } from '@/components/peer-predictions/peer-view-popover
 import { PeerViewTrigger } from '@/components/peer-predictions/peer-view-trigger';
 import type { PeerRow } from '@/lib/peer-predictions/load-peer-predictions';
 import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payloads';
+import { formatKickoff } from '@/lib/format/kickoff';
 import { saveKnockoutPick } from './actions';
 import type { KnockoutPredictionCode, KnockoutRound } from './constants';
 
@@ -54,15 +55,6 @@ const OPTION_LABELS: Record<KnockoutPredictionCode, string> = {
   '2A': 'külalismeeskond — normaalaeg',
   '2B': 'külalismeeskond — lisaaeg / penaltid',
 };
-
-function formatKickoff(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mn = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${dd}.${mm} ${hh}:${mn} UTC`;
-}
 
 interface MatchRowProps {
   match: KnockoutMatchView;

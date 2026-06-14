@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { db } from '@/lib/db';
+import { formatKickoff } from '@/lib/format/kickoff';
 import { getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, teams } from '@/db/schema';
 import { MatchResultForm } from './match-result-form';
@@ -125,7 +126,7 @@ export default async function AdminMatchesPage() {
                       Mäng
                     </TableHead>
                     <TableHead scope="col" className="whitespace-nowrap">
-                      Kickoff (UTC)
+                      Algus
                     </TableHead>
                     <TableHead scope="col" className="text-center">
                       2×
@@ -150,7 +151,7 @@ export default async function AdminMatchesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs tabular-nums text-text-muted">
-                        {row.kickoff_at.toISOString().replace('T', ' ').slice(0, 16)}
+                        {formatKickoff(row.kickoff_at, 'Europe/Tallinn')}
                       </TableCell>
                       <TableCell className="text-center text-xs">
                         {row.double_points ? (
