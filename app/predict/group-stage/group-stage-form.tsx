@@ -83,6 +83,17 @@ function shortCaptionForCode(code: GroupStagePredictionCode): string {
   return code[1] === 'A' ? '1–2' : '3+';
 }
 
+// Bold chip header: the team's country code stands in for "1A/1B" (home) and
+// "2A/2B" (away); X stays as X. Margin distinction lives in the caption below.
+function chipHeaderForCode(
+  code: GroupStagePredictionCode,
+  home: TeamView,
+  away: TeamView,
+): string {
+  if (code === 'X') return 'X';
+  return code[0] === '1' ? home.code : away.code;
+}
+
 interface MatchRowProps {
   match: GroupStageMatchView;
   pick: GroupStagePredictionCode | null;
@@ -207,8 +218,8 @@ function MatchRow({
                 disabled={disabled}
                 className="sr-only"
               />
-              <span className="text-sm font-bold leading-none tabular-nums">
-                {code}
+              <span className="text-xs font-semibold leading-none tabular-nums">
+                {chipHeaderForCode(code, homeTeam, awayTeam)}
               </span>
               <span
                 className={`mt-0.5 text-[10px] leading-tight ${
