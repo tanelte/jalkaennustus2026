@@ -3,6 +3,6 @@
   "regions": ["fra1"],
   "crons": [
     { "path": "/api/cron/stage-evaluator", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/results-poller", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/results-poller", "schedule": "0 4 * * *" }
   ]
 }
