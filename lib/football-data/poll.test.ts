@@ -34,6 +34,8 @@ function makeGameRow(overrides: Partial<GameRow> = {}): GameRow {
     finish_type: null,
     result_source: null,
     stage_code: 'group_matches',
+    team_home_id: null,
+    team_away_id: null,
     ...overrides,
   };
 }
@@ -42,13 +44,24 @@ interface RepoSpyState {
   findGameRows: Map<string, GameRow | null>; // keyed by match_id; null means "no match"
   applyFeedCalls: Array<{ game_id: string; match_id: string }>;
   linkCalls: Array<{ game_id: string; match_id: string }>;
+  fillCalls: Array<{ game_id: string; team_home_id?: string; team_away_id?: string }>;
 }
 
-function makeRepo(initial: GameRow[]): { repo: PollRepo; state: RepoSpyState } {
+// Codes the fake teams table can resolve. A code outside this set resolves to
+// null (exercises the unresolved_team_code path). Resolution is deterministic:
+// code 'USA' -> 'team-USA'.
+const KNOWN_TEAM_CODES = new Set(['USA', 'MEX', 'RSA', 'CAN', 'BRA', 'ARG']);
+
+function makeRepo(
+  initial: GameRow[],
+  opts: { knownCodes?: Set<string> } = {},
+): { repo: PollRepo; state: RepoSpyState } {
+  const knownCodes = opts.knownCodes ?? KNOWN_TEAM_CODES;
   const state: RepoSpyState = {
     findGameRows: new Map(),
     applyFeedCalls: [],
     linkCalls: [],
+    fillCalls: [],
   };
   for (const row of initial) {
     if (row.match_id) state.findGameRows.set(row.match_id, row);
@@ -67,6 +80,18 @@ function makeRepo(initial: GameRow[]): { repo: PollRepo; state: RepoSpyState } {
       // we approximate by checking a side-channel - here we just lookup the
       // row that was registered without a match_id under a synthetic key).
       return state.findGameRows.get(`${input.team_home_code}/${input.team_away_code}`) ?? null;
+    },
+    async findTeamIdByCode(input) {
+      return knownCodes.has(input.code) ? `team-${input.code}` : null;
+    },
+    async fillKnockoutTeams(input) {
+      state.fillCalls.push(input);
+      const row = rowsByGameId.get(input.game_id);
+      if (row) {
+        // Mirror the SQL NULL-guard: only fill a slot that is currently NULL.
+        if (input.team_home_id && row.team_home_id === null) row.team_home_id = input.team_home_id;
+        if (input.team_away_id && row.team_away_id === null) row.team_away_id = input.team_away_id;
+      }
     },
     async applyFeedResult(input) {
       state.applyFeedCalls.push({ game_id: input.game_id, match_id: input.match_id });
@@ -273,6 +298,10 @@ describe('pollResultsOnce', () => {
         return { rescored: 0, result_code: null };
       },
       async linkMatchId() {},
+      async findTeamIdByCode() {
+        return null;
+      },
+      async fillKnockoutTeams() {},
     };
     await expect(
       pollResultsOnce(
@@ -280,5 +309,140 @@ describe('pollResultsOnce', () => {
         { competitionCode: 'WC', tournamentCode: 'NOPE' },
       ),
     ).rejects.toThrow(/tournament code 'NOPE' not found/);
+  });
+});
+
+describe('pollResultsOnce — knockout bracket auto-fill', () => {
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  // A knockout game already linked by match_id (the seed links these) whose
+  // result fields equal the feed's — so the result path stays 'unchanged' and
+  // the test isolates the team-fill behaviour.
+  function makeKnockoutRow(overrides: Partial<GameRow> = {}): GameRow {
+    return makeGameRow({
+      id: 'k1',
+      match_id: 'K1',
+      stage_code: 'r32',
+      score_home: null,
+      score_away: null,
+      final_status: 'TIMED',
+      finish_type: null,
+      result_source: 'feed',
+      team_home_id: null,
+      team_away_id: null,
+      ...overrides,
+    });
+  }
+  // Feed payload matching the row's result fields (so decide() -> unchanged),
+  // carrying the now-resolved bracket codes.
+  function makeKnockoutMatch(overrides: Partial<MatchResult> = {}): MatchResult {
+    return makeMatch({
+      match_id: 'K1',
+      final_status: 'TIMED',
+      finish_type: null,
+      score_home: null,
+      score_away: null,
+      team_home_code: 'RSA',
+      team_away_code: 'CAN',
+      ...overrides,
+    });
+  }
+
+  function logLines() {
+    return logSpy.mock.calls.map((c) => JSON.parse(c[0] as string));
+  }
+
+  it('fills both NULL slots when the feed resolves both teams', async () => {
+    const { repo, state } = makeRepo([makeKnockoutRow()]);
+    const summary = await pollResultsOnce(
+      { provider: makeProvider([makeKnockoutMatch()]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(2);
+    expect(summary.matches_unchanged).toBe(1);
+    expect(state.fillCalls).toEqual([
+      { game_id: 'k1', team_home_id: 'team-RSA', team_away_id: 'team-CAN' },
+    ]);
+    expect(state.applyFeedCalls).toEqual([]);
+  });
+
+  it('fills only the NULL side, leaving an already-set team untouched (incremental draw)', async () => {
+    // RSA already known; opponent resolves later in the feed.
+    const { repo, state } = makeRepo([makeKnockoutRow({ team_home_id: 'team-RSA' })]);
+    const summary = await pollResultsOnce(
+      { provider: makeProvider([makeKnockoutMatch()]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(1);
+    expect(state.fillCalls).toEqual([{ game_id: 'k1', team_away_id: 'team-CAN' }]);
+  });
+
+  it('fills nothing when both slots are already set (idempotent re-poll)', async () => {
+    const { repo, state } = makeRepo([
+      makeKnockoutRow({ team_home_id: 'team-RSA', team_away_id: 'team-CAN' }),
+    ]);
+    const summary = await pollResultsOnce(
+      { provider: makeProvider([makeKnockoutMatch()]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(0);
+    expect(state.fillCalls).toEqual([]);
+  });
+
+  it('skips an unresolvable team code (logs unresolved_team_code) and fills the resolvable side', async () => {
+    const { repo, state } = makeRepo([makeKnockoutRow()]);
+    const summary = await pollResultsOnce(
+      // 'ZZZ' is not a known team code; 'CAN' resolves.
+      { provider: makeProvider([makeKnockoutMatch({ team_home_code: 'ZZZ' })]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(1);
+    expect(state.fillCalls).toEqual([{ game_id: 'k1', team_away_id: 'team-CAN' }]);
+    expect(
+      logLines().some(
+        (l) => l.outcome === 'skipped' && l.reason === 'unresolved_team_code' && l.side === 'home',
+      ),
+    ).toBe(true);
+  });
+
+  it('never fills a group-stage game even when feed carries team codes', async () => {
+    const { repo, state } = makeRepo([
+      makeKnockoutRow({ stage_code: 'group_matches', match_id: 'G1' }),
+    ]);
+    const summary = await pollResultsOnce(
+      { provider: makeProvider([makeKnockoutMatch({ match_id: 'G1' })]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(0);
+    expect(state.fillCalls).toEqual([]);
+  });
+
+  it('logs a bracket_conflict and does not overwrite when the feed disagrees with a set slot', async () => {
+    // Home is already CAN-equivalent? No — set to USA; feed says BRA for home.
+    const { repo, state } = makeRepo([
+      makeKnockoutRow({ team_home_id: 'team-USA', team_away_id: 'team-CAN' }),
+    ]);
+    const summary = await pollResultsOnce(
+      { provider: makeProvider([makeKnockoutMatch({ team_home_code: 'BRA' })]), repo },
+      { competitionCode: 'WC', tournamentCode: 'WC2026' },
+    );
+    expect(summary.knockout_teams_filled).toBe(0);
+    expect(state.fillCalls).toEqual([]);
+    expect(
+      logLines().some(
+        (l) =>
+          l.outcome === 'rejected' &&
+          l.reason === 'bracket_conflict' &&
+          l.side === 'home' &&
+          l.existing_team_id === 'team-USA' &&
+          l.feed_team_id === 'team-BRA',
+      ),
+    ).toBe(true);
   });
 });

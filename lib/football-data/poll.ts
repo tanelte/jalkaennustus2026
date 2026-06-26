@@ -10,6 +10,8 @@ export interface GameRow {
   finish_type: string | null;
   result_source: string | null;
   stage_code: string;
+  team_home_id: string | null;
+  team_away_id: string | null;
 }
 
 export interface ApplyFeedInput {
@@ -44,6 +46,18 @@ export interface PollRepo {
   applyFeedResult(input: ApplyFeedInput): Promise<{ rescored: number; result_code: string | null }>;
   /** Link match_id only, without touching scores. Used in operator-conflict + first-discovery cases. */
   linkMatchId(input: { game_id: string; match_id: string }): Promise<void>;
+  /** Resolve a tournament-scoped team code (TLA) to its internal UUID, or null. */
+  findTeamIdByCode(input: { tournament_id: string; code: string }): Promise<string | null>;
+  /**
+   * Populate a knockout game's team slot(s) from the resolved bracket. Writes
+   * only the provided side(s), and only where the column is currently NULL, so
+   * an operator-set team is never clobbered (concurrency-safe via SQL guard).
+   */
+  fillKnockoutTeams(input: {
+    game_id: string;
+    team_home_id?: string;
+    team_away_id?: string;
+  }): Promise<void>;
 }
 
 export interface PollDeps {
@@ -57,6 +71,7 @@ export interface PollSummary {
   matches_unchanged: number;
   matches_conflicted: number;
   matches_unknown: number;
+  knockout_teams_filled: number;
   rate_limit_remaining_minute: number | null;
 }
 
@@ -75,6 +90,89 @@ function fieldsMatch(existing: GameRow, m: MatchResult): boolean {
     existing.final_status === m.final_status &&
     existing.finish_type === expectedFinishType
   );
+}
+
+/**
+ * Auto-fill a knockout game's NULL team slots from the feed once the bracket
+ * resolves. Fills each side independently (the feed reveals matchups
+ * incrementally as the group stage / earlier rounds finish), only into NULL
+ * slots — an already-set team (operator or prior feed) is never overwritten;
+ * a feed code that disagrees with a set slot is logged, not applied. Returns
+ * the number of slots filled (0, 1, or 2).
+ */
+async function maybeFillKnockoutTeams(
+  m: MatchResult,
+  existing: GameRow,
+  tournamentId: string,
+  repo: PollRepo,
+): Promise<number> {
+  if (!KNOCKOUT_STAGES.has(existing.stage_code)) return 0;
+
+  const fill: { team_home_id?: string; team_away_id?: string } = {};
+
+  const sides = [
+    { label: 'home', currentId: existing.team_home_id, code: m.team_home_code },
+    { label: 'away', currentId: existing.team_away_id, code: m.team_away_code },
+  ] as const;
+
+  for (const side of sides) {
+    if (!side.code) continue; // feed slot still TBD — nothing to fill yet
+
+    if (side.currentId !== null) {
+      // Slot already set. Surface a disagreement but never overwrite.
+      const resolved = await repo.findTeamIdByCode({ tournament_id: tournamentId, code: side.code });
+      if (resolved && resolved !== side.currentId) {
+        log.warn({
+          operation: 'cron.results_poller.bracket',
+          outcome: 'rejected',
+          reason: 'bracket_conflict',
+          game_id: existing.id,
+          feed_match_id: m.match_id,
+          side: side.label,
+          existing_team_id: side.currentId,
+          feed_team_code: side.code,
+          feed_team_id: resolved,
+        });
+      }
+      continue;
+    }
+
+    const teamId = await repo.findTeamIdByCode({ tournament_id: tournamentId, code: side.code });
+    if (!teamId) {
+      log.warn({
+        operation: 'cron.results_poller.bracket',
+        outcome: 'skipped',
+        reason: 'unresolved_team_code',
+        game_id: existing.id,
+        feed_match_id: m.match_id,
+        side: side.label,
+        feed_team_code: side.code,
+      });
+      continue;
+    }
+    if (side.label === 'home') fill.team_home_id = teamId;
+    else fill.team_away_id = teamId;
+  }
+
+  const filledCount = (fill.team_home_id ? 1 : 0) + (fill.team_away_id ? 1 : 0);
+  if (filledCount === 0) return 0;
+
+  await repo.fillKnockoutTeams({ game_id: existing.id, ...fill });
+  // Reflect the write locally so a same-poll result-application sees the teams.
+  if (fill.team_home_id) existing.team_home_id = fill.team_home_id;
+  if (fill.team_away_id) existing.team_away_id = fill.team_away_id;
+
+  log.info({
+    operation: 'cron.results_poller.bracket',
+    outcome: 'filled',
+    game_id: existing.id,
+    feed_match_id: m.match_id,
+    stage_code: existing.stage_code,
+    team_home_code: fill.team_home_id ? m.team_home_code : undefined,
+    team_away_code: fill.team_away_id ? m.team_away_code : undefined,
+    slots_filled: filledCount,
+  });
+  return filledCount;
 }
 
 async function decide(
@@ -145,6 +243,7 @@ export async function pollResultsOnce(
     matches_unchanged: 0,
     matches_conflicted: 0,
     matches_unknown: 0,
+    knockout_teams_filled: 0,
     rate_limit_remaining_minute: fetched.rate_limit.remaining_minute,
   };
 
@@ -167,6 +266,16 @@ export async function pollResultsOnce(
       });
       continue;
     }
+    // Structural bracket fill is independent of result application: a knockout
+    // match discovered already finished both fills its teams and applies its
+    // result in the same iteration.
+    summary.knockout_teams_filled += await maybeFillKnockoutTeams(
+      m,
+      existing,
+      tournamentId,
+      deps.repo,
+    );
+
     const decision = await decide(m, existing, deps.repo);
     switch (decision.kind) {
       case 'updated':

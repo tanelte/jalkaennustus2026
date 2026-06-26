@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { games, teams, tournaments } from '@/db/schema';
 import { recomputeMatch } from '@/lib/recompute/match';
@@ -29,6 +29,8 @@ async function findGameForMatch(input: {
       finish_type: games.finish_type,
       result_source: games.result_source,
       stage_code: games.stage_code,
+      team_home_id: games.team_home_id,
+      team_away_id: games.team_away_id,
     })
     .from(games)
     .where(and(eq(games.tournament_id, input.tournament_id), eq(games.match_id, input.match_id)))
@@ -59,6 +61,8 @@ async function findGameForMatch(input: {
       finish_type: games.finish_type,
       result_source: games.result_source,
       stage_code: games.stage_code,
+      team_home_id: games.team_home_id,
+      team_away_id: games.team_away_id,
     })
     .from(games)
     .where(
@@ -96,9 +100,44 @@ async function linkMatchId(input: { game_id: string; match_id: string }): Promis
   await db.update(games).set({ match_id: input.match_id }).where(eq(games.id, input.game_id));
 }
 
+async function findTeamIdByCode(input: {
+  tournament_id: string;
+  code: string;
+}): Promise<string | null> {
+  const rows = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .where(and(eq(teams.tournament_id, input.tournament_id), eq(teams.code, input.code)))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+async function fillKnockoutTeams(input: {
+  game_id: string;
+  team_home_id?: string;
+  team_away_id?: string;
+}): Promise<void> {
+  // Each side is a separate NULL-guarded update so a concurrent operator set is
+  // never clobbered, and the two sides don't interfere with each other's guard.
+  if (input.team_home_id) {
+    await db
+      .update(games)
+      .set({ team_home_id: input.team_home_id })
+      .where(and(eq(games.id, input.game_id), isNull(games.team_home_id)));
+  }
+  if (input.team_away_id) {
+    await db
+      .update(games)
+      .set({ team_away_id: input.team_away_id })
+      .where(and(eq(games.id, input.game_id), isNull(games.team_away_id)));
+  }
+}
+
 export const drizzlePollRepo: PollRepo = {
   findTournamentIdByCode,
   findGameForMatch,
   applyFeedResult,
   linkMatchId,
+  findTeamIdByCode,
+  fillKnockoutTeams,
 };
