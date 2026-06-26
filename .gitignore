@@ -22,6 +22,9 @@ supabase/.temp/
 # Drizzle
 drizzle/
 
+# Database backups (pg_dump output — contains PII, never commit)
+backups/
+
 # Env files (keep .env.local.example)
 .env
 .env.*

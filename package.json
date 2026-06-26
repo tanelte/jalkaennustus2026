@@ -20,6 +20,7 @@
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
+    "db:backup": "tsx scripts/backup.ts",
     "create-group": "tsx scripts/create-group.ts",
     "promote-operator": "tsx scripts/promote-operator.ts",
     "build-legacy-seed": "tsx scripts/build-legacy-seed.ts"
