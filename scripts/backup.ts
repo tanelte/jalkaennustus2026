@@ -23,8 +23,13 @@ function main() {
 
   console.log(`Backing up to ${file} ...`);
 
+  // --schema=public: only the app schema. Supabase's managed schemas (auth, storage,
+  //   realtime, vault, extensions) are platform-provisioned and recreated by `supabase start`
+  //   / the managed project, so they don't belong in our data backup.
   // -Fc: custom format — single compressed file, schema + data, restorable via pg_restore.
-  const res = spawnSync('pg_dump', [url, '-Fc', '-f', file], { stdio: 'inherit' });
+  const res = spawnSync('pg_dump', [url, '--schema=public', '-Fc', '-f', file], {
+    stdio: 'inherit',
+  });
 
   if (res.error) {
     if ((res.error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -44,7 +49,7 @@ function main() {
 
   const sizeMb = (statSync(file).size / 1024 / 1024).toFixed(2);
   console.log(`Done. ${file} (${sizeMb} MB)`);
-  console.log(`Restore with: pg_restore --no-owner -d <target_url> "${file}"`);
+  console.log(`Restore with: pg_restore --no-owner --no-privileges -d <target_url> "${file}"`);
 }
 
 main();
