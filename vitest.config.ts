@@ -12,6 +12,8 @@ export default defineConfig({
     include: [
       'lib/**/*.test.ts',
       'lib/**/*.test.tsx',
+      'app/**/*.test.ts',
+      'app/**/*.test.tsx',
       'scripts/**/*.test.ts',
     ],
     coverage: {

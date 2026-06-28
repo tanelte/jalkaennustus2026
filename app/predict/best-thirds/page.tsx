@@ -15,6 +15,7 @@ import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
+import { getSystemUserId } from '@/lib/system-user';
 import { user_best_thirds, users } from '@/db/schema';
 import { loadBestThirdsPeerRows } from '@/lib/peer-predictions/load-best-thirds-payloads';
 import { BestThirdsForm } from './best-thirds-form';
@@ -59,6 +60,25 @@ async function loadCurrentPicks(userId: string, tournamentId: string): Promise<s
 }
 
 /**
+ * The `tegelikud tulemused` singleton owns the official best-thirds set. An
+ * empty result means results are not in yet (the surface stays pre-results).
+ */
+async function loadOfficialLetters(tournamentId: string): Promise<string[]> {
+  const systemUserId = await getSystemUserId();
+  const rows = await db
+    .select({ group_letter: user_best_thirds.group_letter })
+    .from(user_best_thirds)
+    .where(
+      and(
+        eq(user_best_thirds.user_id, systemUserId),
+        eq(user_best_thirds.tournament_id, tournamentId),
+      ),
+    )
+    .orderBy(asc(user_best_thirds.group_letter));
+  return rows.map((r) => r.group_letter);
+}
+
+/**
  * UX spec §15.4 — shared prediction shell wraps the best-thirds tile grid.
  * The exactly-8 server-side validation rule is preserved (see story S05
  * §Out and §20.4); this page only re-skins the surface.
@@ -71,9 +91,17 @@ export default async function BestThirdsPage() {
   const tournamentId = await getCurrentTournamentId();
   const tournamentChip = resolveTournamentCode();
 
-  const [picks, gate, { playerName, isOperator }, maskedRecoveryEmail, peerRows] =
+  const [
+    picks,
+    officialLetters,
+    gate,
+    { playerName, isOperator },
+    maskedRecoveryEmail,
+    peerRows,
+  ] =
     await Promise.all([
       loadCurrentPicks(userId, tournamentId),
+      loadOfficialLetters(tournamentId),
       isStageOpen(BEST_THIRDS_STAGE_CODE, tournamentId),
       loadPlayerContext(userId),
       getMaskedRecoveryEmailForUser(userId),
@@ -131,6 +159,7 @@ export default async function BestThirdsPage() {
           <CardContent className="p-5 sm:p-6">
             <BestThirdsForm
               initialPicks={picks}
+              officialLetters={officialLetters}
               mode={editMode}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
