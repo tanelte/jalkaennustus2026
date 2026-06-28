@@ -49,25 +49,37 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
       },
     );
 
-    // g-1: Mart → Brazil (home), Anu → Germany (away).
+    // g-1: Mart → Brazil (home, 1A → norm), Anu → Germany (away, 2A → norm).
     expect(out.get('g-1')).toEqual([
       {
         peerId: 'u-mart',
         peerName: 'Mart',
-        submittedPayload: { teamId: 'team-brazil', teamName: 'Brasiilia' },
+        submittedPayload: {
+          teamId: 'team-brazil',
+          teamName: 'Brasiilia',
+          finish: 'norm',
+        },
       },
       {
         peerId: 'u-anu',
         peerName: 'Anu',
-        submittedPayload: { teamId: 'team-germany', teamName: 'Saksamaa' },
+        submittedPayload: {
+          teamId: 'team-germany',
+          teamName: 'Saksamaa',
+          finish: 'norm',
+        },
       },
     ]);
-    // g-2: Mart → Spain (away), Anu → null (no pick).
+    // g-2: Mart → Spain (away, 2B → lisa), Anu → null (no pick).
     expect(out.get('g-2')).toEqual([
       {
         peerId: 'u-mart',
         peerName: 'Mart',
-        submittedPayload: { teamId: 'team-spain', teamName: 'Hispaania' },
+        submittedPayload: {
+          teamId: 'team-spain',
+          teamName: 'Hispaania',
+          finish: 'lisa',
+        },
       },
       { peerId: 'u-anu', peerName: 'Anu', submittedPayload: null },
     ]);
@@ -243,6 +255,48 @@ describe('loadAllKnockoutPeerRowsForSlotsCore', () => {
     );
     expect(out.get('g-1')).toEqual([
       { peerId: 'u-mart', peerName: 'Mart', submittedPayload: null },
+    ]);
+  });
+
+  it('maps the A/B suffix to the finish field (A → norm, B → lisa)', async () => {
+    const out = await loadAllKnockoutPeerRowsForSlotsCore(
+      'r32',
+      ['g-1'],
+      { groupId: 'group-1', viewerUserId: 'u-viewer' },
+      {
+        findGroupMembers: async () => [
+          { user_id: 'u-viewer', username: 'Viewer' },
+          { user_id: 'u-norm', username: 'Norm' },
+          { user_id: 'u-lisa', username: 'Lisa' },
+        ],
+        findSystemUserId: async () => 'sys',
+        findMatchesForRound: async () => MATCH_ROWS.slice(0, 1),
+        findPredictionsForGames: async () => [
+          // Same team (home, Brazil), different finish suffix.
+          { user_id: 'u-norm', game_id: 'g-1', prediction: '1A' },
+          { user_id: 'u-lisa', game_id: 'g-1', prediction: '1B' },
+        ],
+      },
+    );
+    expect(out.get('g-1')).toEqual([
+      {
+        peerId: 'u-norm',
+        peerName: 'Norm',
+        submittedPayload: {
+          teamId: 'team-brazil',
+          teamName: 'Brasiilia',
+          finish: 'norm',
+        },
+      },
+      {
+        peerId: 'u-lisa',
+        peerName: 'Lisa',
+        submittedPayload: {
+          teamId: 'team-brazil',
+          teamName: 'Brasiilia',
+          finish: 'lisa',
+        },
+      },
     ]);
   });
 });

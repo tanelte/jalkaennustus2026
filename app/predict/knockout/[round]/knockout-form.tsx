@@ -67,8 +67,9 @@ interface MatchRowProps {
 
 function renderKnockoutPick(payload: KnockoutPeerPick) {
   return (
-    <span className="inline-flex items-center rounded-md border border-brand-green/30 bg-brand-green-soft px-2 py-0.5 text-xs font-medium text-brand-green">
+    <span className="inline-flex items-center gap-1 rounded-md border border-brand-green/30 bg-brand-green-soft px-2 py-0.5 text-xs font-medium text-brand-green">
       {payload.teamName}
+      <span className="text-brand-green/60">({payload.finish})</span>
     </span>
   );
 }

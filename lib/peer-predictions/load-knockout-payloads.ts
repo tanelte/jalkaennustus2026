@@ -21,6 +21,7 @@ import { getSystemUserId } from '@/lib/system-user';
 export type KnockoutPeerPick = {
   teamId: string;
   teamName: string;
+  finish: 'norm' | 'lisa';
 };
 
 interface MatchTeamRow {
@@ -53,13 +54,16 @@ function pickedTeamFromCode(
 ): KnockoutPeerPick | null {
   if (!prediction) return null;
   const head = prediction[0];
+  // Suffix `A` = normal time (normaalaeg); anything else = extra time /
+  // penalties (lisaaeg / penaltid). Mirrors the round form's own mapping.
+  const finish = prediction[1] === 'A' ? 'norm' : 'lisa';
   if (head === '1') {
     if (!match.team_home_id || !match.home_name_et) return null;
-    return { teamId: match.team_home_id, teamName: match.home_name_et };
+    return { teamId: match.team_home_id, teamName: match.home_name_et, finish };
   }
   if (head === '2') {
     if (!match.team_away_id || !match.away_name_et) return null;
-    return { teamId: match.team_away_id, teamName: match.away_name_et };
+    return { teamId: match.team_away_id, teamName: match.away_name_et, finish };
   }
   return null;
 }
