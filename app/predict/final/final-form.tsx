@@ -15,6 +15,7 @@ import {
   FORM_FIELD_PREFIX,
   type FinalSlot,
 } from './constants';
+import type { FinalResultsView } from './result-view';
 
 export interface CandidateTeamView {
   id: string;
@@ -51,6 +52,11 @@ export interface FinalFormProps {
   mode: EditMode;
   userId: string;
   maskedRecoveryEmail?: string | null;
+  /**
+   * Per-slot official standings + earned points, once results are confirmed.
+   * Null until the operator sets all four medal positions.
+   */
+  results?: FinalResultsView | null;
 }
 
 export function FinalForm({
@@ -60,6 +66,7 @@ export function FinalForm({
   mode,
   userId,
   maskedRecoveryEmail,
+  results,
 }: FinalFormProps) {
   const [picks, setPicks] = useState<Partial<Record<FinalSlot, string>>>(initialPicks);
   const [pinModalOpen, setPinModalOpen] = useState(false);
@@ -103,6 +110,7 @@ export function FinalForm({
       <div className="space-y-3">
         {slotsOrder.map((slot) => {
           const inputId = `${FORM_FIELD_PREFIX}${slot}`;
+          const slotResult = results?.[slot] ?? null;
           return (
             <div
               key={slot}
@@ -133,6 +141,25 @@ export function FinalForm({
                   </option>
                 ))}
               </select>
+
+              {slotResult && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-default pt-2 text-sm text-text-body">
+                  <span className="font-medium text-text-primary">
+                    Tegelik: {slotResult.officialTeamName}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      slotResult.points > 0
+                        ? 'border-brand-green/30 bg-brand-green-soft text-brand-green'
+                        : 'border-border-default bg-bg-app text-text-muted'
+                    }
+                  >
+                    {slotResult.points > 0 ? '+' : ''}
+                    {slotResult.points}p
+                  </Badge>
+                </div>
+              )}
             </div>
           );
         })}

@@ -16,9 +16,15 @@ import { loadFinalPeerRows } from '@/lib/peer-predictions/load-final-payloads';
 import { resolveEditMode } from '@/lib/pin/edit-mode';
 import { getMaskedRecoveryEmailForUser } from '@/lib/pin/recovery';
 import { isStageOpen } from '@/lib/stages/is-stage-open';
+import { getSystemUserId } from '@/lib/system-user';
 import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments/current';
 import { games, teams, user_teams, users } from '@/db/schema';
 import { FinalForm, type CandidateTeamView } from './final-form';
+import {
+  buildFinalSlotResults,
+  type FinalResultsView,
+  type OfficialFinalSlot,
+} from './result-view';
 import {
   FINAL_ROUND_VALUE,
   FINAL_SLOTS,
@@ -104,6 +110,39 @@ async function loadCurrentPicks(
 }
 
 /**
+ * The official medal standings: the `tegelikud tulemused` singleton's four
+ * final picks, joined to team names. Empty until the operator confirms the
+ * result; the result view then gates on the full set being present.
+ */
+async function loadOfficialSlots(
+  tournamentId: string,
+): Promise<Partial<Record<FinalSlot, OfficialFinalSlot>>> {
+  const systemUserId = await getSystemUserId();
+  const rows = await db
+    .select({
+      slot: user_teams.slot,
+      team_id: user_teams.team_id,
+      team_name: teams.name_et,
+    })
+    .from(user_teams)
+    .innerJoin(teams, eq(teams.id, user_teams.team_id))
+    .where(
+      and(
+        eq(user_teams.user_id, systemUserId),
+        eq(user_teams.tournament_id, tournamentId),
+        eq(user_teams.round, FINAL_ROUND_VALUE),
+      ),
+    );
+  const out: Partial<Record<FinalSlot, OfficialFinalSlot>> = {};
+  for (const row of rows) {
+    if (isFinalSlot(row.slot)) {
+      out[row.slot] = { teamId: row.team_id, teamName: row.team_name };
+    }
+  }
+  return out;
+}
+
+/**
  * UX spec §15.4 — shared prediction shell wraps the F1–F4 medal-position
  * picker. Pure re-skin: scoring & validation rules untouched (story S05 §Out
  * and constitution §6 Rule 6).
@@ -119,6 +158,7 @@ export default async function FinalPredictPage() {
   const [
     candidates,
     initialPicks,
+    officialSlots,
     gate,
     { playerName, isOperator },
     maskedRecoveryEmail,
@@ -126,6 +166,7 @@ export default async function FinalPredictPage() {
   ] = await Promise.all([
     loadCandidateTeams(tournamentId),
     loadCurrentPicks(userId, tournamentId),
+    loadOfficialSlots(tournamentId),
     isStageOpen(FINAL_STAGE_CODE, tournamentId),
     loadPlayerContext(userId),
     getMaskedRecoveryEmailForUser(userId),
@@ -139,6 +180,12 @@ export default async function FinalPredictPage() {
   ]);
 
   const editMode = await resolveEditMode({ userId, stageGate: gate });
+
+  // Per-slot earned-points tail, once the official medal standings are complete.
+  const results: FinalResultsView | null = buildFinalSlotResults(
+    initialPicks,
+    officialSlots,
+  );
 
   return (
     <>
@@ -201,6 +248,7 @@ export default async function FinalPredictPage() {
               slotsOrder={FINAL_SLOTS}
               userId={userId}
               maskedRecoveryEmail={maskedRecoveryEmail}
+              results={results}
             />
           </CardContent>
         </Card>

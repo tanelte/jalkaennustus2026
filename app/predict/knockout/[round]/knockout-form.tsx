@@ -15,6 +15,7 @@ import type { KnockoutPeerPick } from '@/lib/peer-predictions/load-knockout-payl
 import { formatKickoff } from '@/lib/format/kickoff';
 import { saveKnockoutPick } from './actions';
 import type { KnockoutPredictionCode, KnockoutRound } from './constants';
+import type { KnockoutMatchResult } from './result-view';
 
 export interface KnockoutTeamView {
   id: string;
@@ -29,6 +30,8 @@ export interface KnockoutMatchView {
   homeTeam: KnockoutTeamView | null;
   awayTeam: KnockoutTeamView | null;
   currentPrediction: string | null;
+  /** Post-result tail (score + finish + earned points), or null if not final. */
+  result: KnockoutMatchResult | null;
 }
 
 const ERROR_COPY: Record<string, string> = {
@@ -160,6 +163,32 @@ function MatchRow({
               </label>
             );
           })}
+        </div>
+      )}
+
+      {match.result && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-default pt-2 text-sm text-text-body">
+          <span className="font-medium text-text-primary">
+            Tulemus: {match.result.scoreHome ?? '?'} – {match.result.scoreAway ?? '?'}
+            {match.result.finishLabel && (
+              <span className="ml-1 font-normal text-text-muted">
+                ({match.result.finishLabel})
+              </span>
+            )}
+          </span>
+          {match.result.points !== null && (
+            <Badge
+              variant="outline"
+              className={
+                match.result.points > 0
+                  ? 'border-brand-green/30 bg-brand-green-soft text-brand-green'
+                  : 'border-border-default bg-bg-app text-text-muted'
+              }
+            >
+              {match.result.points > 0 ? '+' : ''}
+              {match.result.points}p
+            </Badge>
+          )}
         </div>
       )}
     </fieldset>

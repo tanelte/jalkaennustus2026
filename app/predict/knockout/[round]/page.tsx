@@ -18,6 +18,7 @@ import { resolveTournamentCode, getCurrentTournamentId } from '@/lib/tournaments
 import { games, teams, user_games, users } from '@/db/schema';
 import { KnockoutForm, type KnockoutMatchView } from './knockout-form';
 import { ROUND_LABELS_ET, isKnockoutRound, type KnockoutRound } from './constants';
+import { buildKnockoutMatchResult } from './result-view';
 import {
   KNOCKOUT_EXACT_POINTS_BY_STAGE,
   KNOCKOUT_WINNER_POINTS_BY_STAGE,
@@ -72,6 +73,10 @@ async function loadRoundMatches(
       kickoff_at: games.kickoff_at,
       team_home_id: games.team_home_id,
       team_away_id: games.team_away_id,
+      result_code: games.result_code,
+      score_home: games.score_home,
+      score_away: games.score_away,
+      finish_type: games.finish_type,
     })
     .from(games)
     .where(and(eq(games.tournament_id, tournamentId), eq(games.stage_code, round)))
@@ -106,14 +111,33 @@ async function loadRoundMatches(
     userGameRows.map((r) => [r.game_id, r.prediction]),
   );
 
-  return gameRows.map((g) => ({
-    id: g.id,
-    roundLabel: g.round_label,
-    kickoffAt: g.kickoff_at.toISOString(),
-    homeTeam: g.team_home_id ? teamById.get(g.team_home_id) ?? null : null,
-    awayTeam: g.team_away_id ? teamById.get(g.team_away_id) ?? null : null,
-    currentPrediction: predictionByGameId.get(g.id) ?? null,
-  }));
+  // Round weights recompute the per-match points shown in the result tail. Stays
+  // in sync with the persisted `user_games.points` (lib/recompute/match.ts), the
+  // same live-recompute approach the group-stage surface uses.
+  const weights = {
+    exactPoints: KNOCKOUT_EXACT_POINTS_BY_STAGE[round],
+    winnerPoints: KNOCKOUT_WINNER_POINTS_BY_STAGE[round],
+  };
+
+  return gameRows.map((g) => {
+    const currentPrediction = predictionByGameId.get(g.id) ?? null;
+    return {
+      id: g.id,
+      roundLabel: g.round_label,
+      kickoffAt: g.kickoff_at.toISOString(),
+      homeTeam: g.team_home_id ? teamById.get(g.team_home_id) ?? null : null,
+      awayTeam: g.team_away_id ? teamById.get(g.team_away_id) ?? null : null,
+      currentPrediction,
+      result: buildKnockoutMatchResult({
+        prediction: currentPrediction,
+        resultCode: g.result_code,
+        scoreHome: g.score_home,
+        scoreAway: g.score_away,
+        finishType: g.finish_type,
+        weights,
+      }),
+    };
+  });
 }
 
 /**
