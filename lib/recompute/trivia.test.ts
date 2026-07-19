@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computePointsForPlayerAnswers,
+  integerDistance,
   judgeAnswer,
   type OfficialQuestion,
   type PlayerAnswerRow,
@@ -54,6 +55,64 @@ describe('judgeAnswer', () => {
   it('team: case-insensitive', () => {
     expect(judgeAnswer('arg', 'ARG', 'team')).toBe(true);
     expect(judgeAnswer('BRA', 'ARG', 'team')).toBe(false);
+  });
+});
+
+describe('integerDistance', () => {
+  it('returns null when official is not yet set / empty / non-integer', () => {
+    expect(integerDistance('8', null)).toBeNull();
+    expect(integerDistance('8', '   ')).toBeNull();
+    expect(integerDistance('8', 'lots')).toBeNull();
+  });
+
+  it('returns the absolute gap', () => {
+    expect(integerDistance('9', '10')).toBe(1);
+    expect(integerDistance('12', '10')).toBe(2);
+    expect(integerDistance(' 10 ', '10')).toBe(0);
+  });
+
+  it('returns Infinity for a blank / non-numeric guess', () => {
+    expect(integerDistance('', '10')).toBe(Number.POSITIVE_INFINITY);
+    expect(integerDistance('lots', '10')).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe('computePointsForPlayerAnswers — integer proximity', () => {
+  it('Q3 off by 2 => 12; Q5 off by 1 (Q4 correct) => 13', () => {
+    // Officials: Q3='12', Q5='8', Q4='Mbappe'.
+    const player = rows(['ARG', 'ENG', '10', 'Mbappe', '7']);
+    const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 12, 4: 14, 5: 13 });
+  });
+
+  it('Q4 wrong => Q5 zero even when the goal count is a near miss', () => {
+    const player = rows(['ARG', 'ENG', '12', 'Messi', '7']);
+    const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 14, 4: 0, 5: 0 });
+  });
+
+  it('blank / non-numeric integer guess => 0', () => {
+    const player = rows(['ARG', 'ENG', 'lots', 'Mbappe', '']);
+    const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 0, 4: 14, 5: 0 });
+  });
+
+  it('far-off integer guess floors at 0', () => {
+    const player = rows(['ARG', 'ENG', '99', 'Mbappe', '8']);
+    const result = computePointsForPlayerAnswers(WC2026_OFFICIALS, player);
+    const byPos = Object.fromEntries(
+      result.map((r, i) => [i + 1, r.points]),
+    ) as Record<number, number | null>;
+    expect(byPos).toEqual({ 1: 14, 2: 14, 3: 0, 4: 14, 5: 14 });
   });
 });
 

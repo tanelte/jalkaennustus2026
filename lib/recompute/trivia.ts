@@ -51,6 +51,28 @@ export function judgeAnswer(
 }
 
 /**
+ * Absolute gap |official - guess| for integer proximity scoring. Mirrors
+ * `judgeAnswer`'s parsing. Returns:
+ *   null                     → official not yet usable (missing/empty/non-int) → defer.
+ *   Number.POSITIVE_INFINITY → player gave a blank/non-numeric guess → scores 0.
+ *   n >= 0                   → the numeric distance.
+ * The distance → points conversion lives in `scoreTrivia` (Constitution Rule 6).
+ */
+export function integerDistance(
+  playerAnswer: string,
+  official: string | null,
+): number | null {
+  if (official === null) return null;
+  const o = official.trim();
+  if (o.length === 0) return null;
+  const op = Number.parseInt(o, 10);
+  if (Number.isNaN(op)) return null;
+  const pp = Number.parseInt(playerAnswer.trim(), 10);
+  if (Number.isNaN(pp)) return Number.POSITIVE_INFINITY;
+  return Math.abs(op - pp);
+}
+
+/**
  * Pure: given the 5 official questions and one player's answer rows, return
  * the points each row should be re-written to. Partial scoring is fully
  * supported — Q1 + Q2 score as soon as their officials are entered, even
@@ -73,10 +95,17 @@ export function computePointsForPlayerAnswers(
     const row = rowByPosition.get(pos);
     const isCorrect =
       off && row ? judgeAnswer(row.answer, off.correct_answer, off.answer_shape) : null;
+    // Integer questions score by proximity; supply the distance so scoreTrivia
+    // can award `max(0, 14 - distance)`. Others stay all-or-nothing (no distance).
+    const distance =
+      off && row && off.answer_shape === 'integer'
+        ? integerDistance(row.answer, off.correct_answer)
+        : undefined;
     return {
       position: pos,
       isCorrect,
       conditionalOnPosition: off?.conditional_on_position ?? null,
+      ...(distance !== undefined ? { distance } : {}),
     };
   });
 

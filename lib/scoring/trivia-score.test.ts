@@ -9,6 +9,17 @@ function mk(
   return { position, isCorrect, conditionalOnPosition };
 }
 
+// Proximity-scored (integer) answer: carries a `distance`. `isCorrect` is
+// derived (0 gap = correct) but the score comes from `distance` in scoreTrivia.
+function mkDist(
+  position: TriviaPosition,
+  distance: number | null,
+  conditionalOnPosition: TriviaPosition | null = null,
+): TriviaAnswerInput {
+  const isCorrect = distance === null ? null : distance === 0;
+  return { position, isCorrect, conditionalOnPosition, distance };
+}
+
 // All five questions independent (baseline shape — no conditional rule).
 function baseline(flags: readonly [boolean, boolean, boolean, boolean, boolean]): TriviaAnswerInput[] {
   return [
@@ -95,6 +106,61 @@ describe('scoreTrivia — Q5-conditional-on-Q4 (the trick)', () => {
     expect(r.perAnswer[3].points).toBe(14);
     expect(r.perAnswer[4].points).toBe(0);
     expect(r.totalPoints).toBe(14);
+  });
+});
+
+describe('scoreTrivia — proximity (integer) scoring', () => {
+  // Q3 (independent integer) at various distances; Q1/Q2/Q4/Q5 all correct.
+  function withQ3Distance(distance: number | null): TriviaAnswerInput[] {
+    return [mk(1, true), mk(2, true), mkDist(3, distance), mk(4, true), mk(5, true, 4)];
+  }
+
+  it('exact (distance 0) => full 14', () => {
+    expect(scoreTrivia(withQ3Distance(0)).perAnswer[2]).toEqual({ position: 3, points: 14 });
+  });
+
+  it('off by 1 => 13', () => {
+    expect(scoreTrivia(withQ3Distance(1)).perAnswer[2]).toEqual({ position: 3, points: 13 });
+  });
+
+  it('off by 13 => 1', () => {
+    expect(scoreTrivia(withQ3Distance(13)).perAnswer[2]).toEqual({ position: 3, points: 1 });
+  });
+
+  it('off by exactly 14 => 0 (floor)', () => {
+    expect(scoreTrivia(withQ3Distance(14)).perAnswer[2]).toEqual({ position: 3, points: 0 });
+  });
+
+  it('off by a large amount => 0 (never negative)', () => {
+    expect(scoreTrivia(withQ3Distance(99)).perAnswer[2]).toEqual({ position: 3, points: 0 });
+  });
+
+  it('Infinity distance (junk/blank guess) => 0', () => {
+    expect(scoreTrivia(withQ3Distance(Number.POSITIVE_INFINITY)).perAnswer[2]).toEqual({
+      position: 3,
+      points: 0,
+    });
+  });
+
+  it('null distance (official/player unknown) => null (defer)', () => {
+    expect(scoreTrivia(withQ3Distance(null)).perAnswer[2]).toEqual({ position: 3, points: null });
+  });
+
+  describe('Q5 proximity × Q4 gate', () => {
+    it('Q4 correct, Q5 off by 3 => 11', () => {
+      const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, true), mkDist(5, 3, 4)]);
+      expect(r.perAnswer[4]).toEqual({ position: 5, points: 11 });
+    });
+
+    it('Q4 wrong, Q5 exact (distance 0) => 0 (gate overrides proximity)', () => {
+      const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, false), mkDist(5, 0, 4)]);
+      expect(r.perAnswer[4]).toEqual({ position: 5, points: 0 });
+    });
+
+    it('Q4 unknown, Q5 distance known => null (gate unknown defers)', () => {
+      const r = scoreTrivia([mk(1, true), mk(2, true), mk(3, true), mk(4, null), mkDist(5, 2, 4)]);
+      expect(r.perAnswer[4]).toEqual({ position: 5, points: null });
+    });
   });
 });
 

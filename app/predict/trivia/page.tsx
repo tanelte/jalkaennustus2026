@@ -151,9 +151,11 @@ export default async function TriviaPage() {
             Trivia ennustus
           </h1>
           <p className="mt-1 text-sm text-text-muted">
-            Vasta enne turniiri algust viiele küsimusele. Iga õige vastus annab{' '}
-            <strong>14 punkti</strong> (kokku max 70). Q5 skoorib ainult juhul,
-            kui Q4 on õige.
+            Vasta enne turniiri algust viiele küsimusele. Iga täpne vastus annab{' '}
+            <strong>14 punkti</strong> (kokku max 70). Arvküsimuste (punased
+            kaardid, väravaküti väravad) puhul saad{' '}
+            <strong>14 miinus erinevus</strong> õigest arvust (min 0) — nt õige
+            10, sinu 9 annab 13. Q5 skoorib ainult juhul, kui Q4 on õige.
           </p>
         </header>
 

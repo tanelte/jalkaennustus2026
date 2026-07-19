@@ -47,8 +47,11 @@ export const FINAL_POINTS_BY_SLOT: Record<FinalSlot, number> = {
   F4: 20,
 };
 
-// Trivia (S11). Five questions, 14 points each. Q5 scores zero unless Q4 is
-// also correct (Q5-conditional-on-Q4 trick preserved from the legacy DNA).
-// Max trivia points = 70 = 7% of the total tournament point budget.
+// Trivia (S11). Five questions, max 14 points each. text/team questions are
+// all-or-nothing (exact = 14, else 0). Integer questions (Q3 red cards, Q5
+// top-scorer goals) score by proximity: max(0, 14 - |official - guess|), so an
+// off-by-one guess earns 13. Q5 scores zero unless Q4 is also correct
+// (Q5-conditional-on-Q4 trick preserved from the legacy DNA). Max trivia points
+// = 70 = 7% of the total tournament point budget.
 export const TRIVIA_POINTS_PER_CORRECT = 14;
 export const TRIVIA_QUESTION_COUNT = 5;
