@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeFinalsRescoreInputs,
-  groupPlayerFinalsByUser,
   validateOfficialFinals,
   type FinalPickRow,
+  type OfficialFinalPicks,
 } from './final-score';
-import type { FinalSlotPicks } from '@/lib/scoring/final-score';
 
-const OFFICIAL: FinalSlotPicks = {
+const OFFICIAL: OfficialFinalPicks = {
   F1: 'team-gold',
   F2: 'team-silver',
   F3: 'team-bronze',
@@ -23,48 +22,39 @@ describe('validateOfficialFinals', () => {
     }
   });
 
-  it('rejects when a slot is missing', () => {
-    expect(
-      validateOfficialFinals({ F1: 'a', F2: 'b', F3: 'c' }),
-    ).toEqual({ ok: false, reason: 'missing_slot' });
+  it('accepts a partial set (bronze/fourth known before the final)', () => {
+    const out = validateOfficialFinals({ F3: 'team-bronze', F4: 'team-fourth' });
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.slots).toEqual({ F3: 'team-bronze', F4: 'team-fourth' });
+    }
   });
 
-  it('rejects when a slot is empty', () => {
-    expect(
-      validateOfficialFinals({ F1: 'a', F2: '', F3: 'c', F4: 'd' }),
-    ).toEqual({ ok: false, reason: 'missing_slot' });
+  it('accepts an empty set', () => {
+    const out = validateOfficialFinals({});
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.slots).toEqual({});
+    }
   });
 
-  it('rejects duplicate teams across slots', () => {
+  it('ignores empty-string slots', () => {
+    const out = validateOfficialFinals({ F1: 'a', F2: '' });
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.slots).toEqual({ F1: 'a' });
+    }
+  });
+
+  it('rejects duplicate teams across filled slots', () => {
     expect(
       validateOfficialFinals({ F1: 'a', F2: 'a', F3: 'c', F4: 'd' }),
     ).toEqual({ ok: false, reason: 'duplicate_team' });
   });
 });
 
-describe('groupPlayerFinalsByUser', () => {
-  it('keeps only users with all four slots', () => {
-    const rows: FinalPickRow[] = [
-      { id: 'r-1', user_id: 'u-1', slot: 'F1', team_id: 'a' },
-      { id: 'r-2', user_id: 'u-1', slot: 'F2', team_id: 'b' },
-      { id: 'r-3', user_id: 'u-1', slot: 'F3', team_id: 'c' },
-      { id: 'r-4', user_id: 'u-1', slot: 'F4', team_id: 'd' },
-      { id: 'r-5', user_id: 'u-2', slot: 'F1', team_id: 'a' },
-      { id: 'r-6', user_id: 'u-2', slot: 'F2', team_id: 'b' },
-    ];
-    const out = groupPlayerFinalsByUser(rows);
-    expect(out.size).toBe(1);
-    expect(out.get('u-1')).toEqual({ F1: 'a', F2: 'b', F3: 'c', F4: 'd' });
-    expect(out.has('u-2')).toBe(false);
-  });
-
-  it('handles empty input', () => {
-    expect(groupPlayerFinalsByUser([]).size).toBe(0);
-  });
-});
-
 describe('computeFinalsRescoreInputs', () => {
-  it('awards locked weights to matching rows for complete pickers', () => {
+  it('awards locked weights to matching rows against a complete official set', () => {
     const rows: FinalPickRow[] = [
       { id: 'r-1', user_id: 'u-1', slot: 'F1', team_id: 'team-gold' },
       { id: 'r-2', user_id: 'u-1', slot: 'F2', team_id: 'team-silver' },
@@ -79,18 +69,38 @@ describe('computeFinalsRescoreInputs', () => {
     ]);
   });
 
-  it('scores 0 for users without all four slots', () => {
+  it('scores only the confirmed positions against a partial official set', () => {
+    // Only F3/F4 official (bronze game played, final pending). A complete
+    // picker earns bronze/fourth now; F1/F2 score 0 until confirmed.
     const rows: FinalPickRow[] = [
       { id: 'r-1', user_id: 'u-1', slot: 'F1', team_id: 'team-gold' },
       { id: 'r-2', user_id: 'u-1', slot: 'F2', team_id: 'team-silver' },
+      { id: 'r-3', user_id: 'u-1', slot: 'F3', team_id: 'team-bronze' },
+      { id: 'r-4', user_id: 'u-1', slot: 'F4', team_id: 'team-fourth' },
+    ];
+    expect(
+      computeFinalsRescoreInputs(rows, { F3: 'team-bronze', F4: 'team-fourth' }),
+    ).toEqual([
+      { id: 'r-1', points: 0 },
+      { id: 'r-2', points: 0 },
+      { id: 'r-3', points: 30 },
+      { id: 'r-4', points: 20 },
+    ]);
+  });
+
+  it('scores a partial picker per-slot (independence — no all-four requirement)', () => {
+    // Player predicted only bronze, correctly; earns 30 despite no other picks.
+    const rows: FinalPickRow[] = [
+      { id: 'r-1', user_id: 'u-1', slot: 'F3', team_id: 'team-bronze' },
+      { id: 'r-2', user_id: 'u-2', slot: 'F3', team_id: 'team-wrong' },
     ];
     expect(computeFinalsRescoreInputs(rows, OFFICIAL)).toEqual([
-      { id: 'r-1', points: 0 },
+      { id: 'r-1', points: 30 },
       { id: 'r-2', points: 0 },
     ]);
   });
 
-  it('scores per-slot independently within a complete picker', () => {
+  it('scores per-slot independently within a picker', () => {
     const rows: FinalPickRow[] = [
       { id: 'r-1', user_id: 'u-1', slot: 'F1', team_id: 'team-gold' },
       { id: 'r-2', user_id: 'u-1', slot: 'F2', team_id: 'team-x' },

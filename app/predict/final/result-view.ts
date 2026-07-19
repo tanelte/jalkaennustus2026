@@ -10,7 +10,7 @@ export interface FinalSlotResult {
   points: number;
 }
 
-export type FinalResultsView = Record<FinalSlot, FinalSlotResult>;
+export type FinalResultsView = Partial<Record<FinalSlot, FinalSlotResult>>;
 
 export interface OfficialFinalSlot {
   teamId: string;
@@ -18,22 +18,22 @@ export interface OfficialFinalSlot {
 }
 
 /**
- * Pure: build the per-slot final result view. Returns null until the official
- * medal standings are complete (all four slots set) — mirrors the best-thirds
- * "results published" gate. Points are recomputed live from the official picks
- * (stays in sync with the persisted `user_teams.points`), never hardcoded — the
- * slot weight comes from `scoreFinalSlot` (constitution rule 6).
+ * Pure: build the per-slot final result view. Each medal position is revealed as
+ * soon as it becomes official — the bronze game is played before the final, so
+ * F3/F4 land before F1/F2. Returns a result entry for each confirmed position;
+ * returns null only when no position is official yet (nothing to show). Points
+ * are recomputed live from the official picks (stays in sync with the persisted
+ * `user_teams.points`), never hardcoded — the slot weight comes from
+ * `scoreFinalSlot` (constitution rule 6).
  */
 export function buildFinalSlotResults(
   playerPicks: Partial<Record<FinalSlot, string>>,
   officialPicks: Partial<Record<FinalSlot, OfficialFinalSlot>>,
 ): FinalResultsView | null {
-  const complete = FINAL_SLOTS.every((slot) => officialPicks[slot]);
-  if (!complete) return null;
-
-  const out = {} as FinalResultsView;
+  const out: FinalResultsView = {};
   for (const slot of FINAL_SLOTS) {
-    const official = officialPicks[slot]!;
+    const official = officialPicks[slot];
+    if (!official) continue;
     const playerTeamId = playerPicks[slot];
     out[slot] = {
       officialTeamId: official.teamId,
@@ -43,5 +43,5 @@ export function buildFinalSlotResults(
         : 0,
     };
   }
-  return out;
+  return Object.keys(out).length > 0 ? out : null;
 }

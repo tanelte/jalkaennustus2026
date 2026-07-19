@@ -6,17 +6,19 @@ import {
   FINAL_SLOTS,
   type FinalSlot,
 } from '@/lib/scoring/weights';
-import { scoreFinalSlot, type FinalSlotPicks } from '@/lib/scoring/final-score';
+import { scoreFinalSlot } from '@/lib/scoring/final-score';
 
 export const FINAL_ROUND_VALUE = 'final';
 
-export type OfficialFinalsValidationError =
-  | 'missing_slot'
-  | 'duplicate_team';
+/** Official medal set — may be partial: positions become official at different
+ * times (F3/F4 at the 3rd-place game, F1/F2 after the final). */
+export type OfficialFinalPicks = Partial<Record<FinalSlot, string>>;
+
+export type OfficialFinalsValidationError = 'duplicate_team';
 
 export interface ValidatedOfficialFinals {
   ok: true;
-  slots: FinalSlotPicks;
+  slots: OfficialFinalPicks;
 }
 
 export interface InvalidOfficialFinals {
@@ -25,28 +27,27 @@ export interface InvalidOfficialFinals {
 }
 
 /**
- * Pure: validate the operator-submitted official medal set. Unlike best-thirds
- * the finals set has no defined intermediate score — either all four slots are
- * present or the operator hasn't confirmed yet. Partial saves are handled by
- * the caller (it elects not to invoke recomputeFinals).
+ * Pure: validate the operator-submitted official medal set. The set may be
+ * partial — each medal position is scored independently as soon as it is
+ * confirmed (bronze/fourth after the 3rd-place game, gold/silver after the
+ * final), so missing slots are allowed. The only invariant is that the *filled*
+ * slots reference distinct teams (one team cannot finish in two positions).
  */
 export function validateOfficialFinals(
-  slots: Partial<Record<FinalSlot, string>>,
+  slots: OfficialFinalPicks,
 ): ValidatedOfficialFinals | InvalidOfficialFinals {
   const teamIds: string[] = [];
-  const complete: Partial<Record<FinalSlot, string>> = {};
+  const filled: OfficialFinalPicks = {};
   for (const slot of FINAL_SLOTS) {
     const teamId = slots[slot];
-    if (typeof teamId !== 'string' || teamId.length === 0) {
-      return { ok: false, reason: 'missing_slot' };
-    }
-    complete[slot] = teamId;
+    if (typeof teamId !== 'string' || teamId.length === 0) continue;
+    filled[slot] = teamId;
     teamIds.push(teamId);
   }
-  if (new Set(teamIds).size !== FINAL_SLOTS.length) {
+  if (new Set(teamIds).size !== teamIds.length) {
     return { ok: false, reason: 'duplicate_team' };
   }
-  return { ok: true, slots: complete as FinalSlotPicks };
+  return { ok: true, slots: filled };
 }
 
 export interface FinalPickRow {
@@ -56,50 +57,29 @@ export interface FinalPickRow {
   team_id: string;
 }
 
-/**
- * Pure: group per-user rows into a `FinalSlotPicks` map, dropping users with
- * fewer than four picks (their score is undefined until they complete the set).
- */
-export function groupPlayerFinalsByUser(
-  rows: readonly FinalPickRow[],
-): Map<string, FinalSlotPicks> {
-  const byUser = new Map<string, Partial<Record<FinalSlot, string>>>();
-  for (const row of rows) {
-    const bucket = byUser.get(row.user_id) ?? {};
-    bucket[row.slot] = row.team_id;
-    byUser.set(row.user_id, bucket);
-  }
-
-  const complete = new Map<string, FinalSlotPicks>();
-  for (const [userId, bucket] of byUser) {
-    if (FINAL_SLOTS.every((s) => typeof bucket[s] === 'string' && bucket[s]!.length > 0)) {
-      complete.set(userId, bucket as FinalSlotPicks);
-    }
-  }
-  return complete;
-}
-
 export interface FinalRescoreRow {
   id: string;
   points: number;
 }
 
 /**
- * Pure: compute per-row points given the official slot map. Rows whose user
- * has not yet picked all four slots are scored to 0 — the leaderboard reads
- * `coalesce(points, 0)` so this collapses to "no contribution yet".
+ * Pure: compute per-row points against the (possibly partial) official map.
+ * Each row is scored independently on its own slot (per-slot independence — a
+ * player earns a position's weight whenever their pick matches, regardless of
+ * how many other positions they filled). Rows whose slot is not yet official
+ * score 0 for now and are rescored once the operator confirms that position.
  */
 export function computeFinalsRescoreInputs(
   rows: readonly FinalPickRow[],
-  official: FinalSlotPicks,
+  official: OfficialFinalPicks,
 ): FinalRescoreRow[] {
-  const completeByUser = groupPlayerFinalsByUser(rows);
   return rows.map((row) => {
-    const userPicks = completeByUser.get(row.user_id);
-    if (!userPicks) return { id: row.id, points: 0 };
+    const officialTeamId = official[row.slot];
     return {
       id: row.id,
-      points: scoreFinalSlot(row.slot, userPicks[row.slot], official[row.slot]),
+      points: officialTeamId
+        ? scoreFinalSlot(row.slot, row.team_id, officialTeamId)
+        : 0,
     };
   });
 }
@@ -112,19 +92,21 @@ export interface RecomputeFinalsResult {
 type DbExecutor = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * Orchestrator: re-seats the singleton's four official rows (delete-then-insert,
- * idempotent) and rescores every non-singleton player's final-round rows for
- * this tournament. Constitution Rule 8: triggered from the operator's confirm
- * action; caller opens the outer tx, this helper participates in it.
+ * Orchestrator: re-seats the singleton's official rows (delete-then-insert,
+ * idempotent — one row per confirmed slot) and rescores every non-singleton
+ * player's final-round rows for this tournament. Constitution Rule 8: triggered
+ * from the operator's confirm action; caller opens the outer tx, this helper
+ * participates in it.
  *
- * Caller must validate `officialSlots` first; calling with an invalid set throws.
- * `scoreFinal` is consulted via the inline per-slot equality check so the math
- * lives in lib/scoring (Rule 6) — the orchestrator only batches DB writes.
+ * `officialSlots` may be partial (e.g. only F3/F4 once the bronze game is
+ * played). Caller must validate first only in the sense that an invalid set
+ * (duplicate team) throws here. The per-slot equality check lives in
+ * lib/scoring (`scoreFinalSlot`, Rule 6) — the orchestrator only batches writes.
  */
 export async function recomputeFinals(
   tournamentId: string,
   systemUserId: string,
-  officialSlots: Partial<Record<FinalSlot, string>>,
+  officialSlots: OfficialFinalPicks,
   tx?: DbExecutor,
 ): Promise<RecomputeFinalsResult> {
   if (!tx) {
@@ -138,7 +120,7 @@ export async function recomputeFinals(
     throw new Error(`recomputeFinals: invalid official slots (${validated.reason})`);
   }
 
-  // 1. Re-seat the singleton's four official rows.
+  // 1. Re-seat the singleton's official rows — one row per confirmed slot.
   await tx
     .delete(user_teams)
     .where(
@@ -148,16 +130,19 @@ export async function recomputeFinals(
         eq(user_teams.round, FINAL_ROUND_VALUE),
       ),
     );
-  await tx.insert(user_teams).values(
-    FINAL_SLOTS.map((slot) => ({
+  const officialRows = FINAL_SLOTS.filter((slot) => validated.slots[slot]).map(
+    (slot) => ({
       user_id: systemUserId,
       tournament_id: tournamentId,
       round: FINAL_ROUND_VALUE,
       slot,
-      team_id: validated.slots[slot],
+      team_id: validated.slots[slot]!,
       points: FINAL_POINTS_BY_SLOT[slot],
-    })),
+    }),
   );
+  if (officialRows.length > 0) {
+    await tx.insert(user_teams).values(officialRows);
+  }
 
   // 2. Re-score every non-singleton player's final-round rows.
   const rawRows = await tx

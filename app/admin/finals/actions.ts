@@ -28,6 +28,7 @@ export type ConfirmFinalsError =
 export interface ConfirmFinalsState {
   ok?: boolean;
   error?: ConfirmFinalsError;
+  /** Player prediction rows rescored by this save (always populated on success). */
   rescored?: number;
 }
 
@@ -73,7 +74,7 @@ export async function confirmFinals(
     }
   }
 
-  const isComplete = FINAL_SLOTS.every((s) => typeof submitted[s] === 'string');
+  const confirmedSlots = FINAL_SLOTS.filter((s) => typeof submitted[s] === 'string').length;
   let priorPicks: Partial<Record<FinalSlot, string>> = {};
   let rescored = 0;
   let affectedUsers = 0;
@@ -95,36 +96,13 @@ export async function confirmFinals(
       }
     }
 
-    if (isComplete) {
-      const result = await recomputeFinals(tournamentId, systemUserId, submitted, tx);
-      rescored = result.rescored;
-      affectedUsers = result.affectedUsers;
-      return;
-    }
-
-    // Partial save: re-seat singleton's rows (whatever is filled) so the admin
-    // surface can pick up where it left off. Players are NOT rescored: the
-    // finals score is undefined until all four slots are official.
-    await tx
-      .delete(user_teams)
-      .where(
-        and(
-          eq(user_teams.user_id, systemUserId),
-          eq(user_teams.tournament_id, tournamentId),
-          eq(user_teams.round, FINAL_ROUND_VALUE),
-        ),
-      );
-    const partialRows = FINAL_SLOTS.filter((s) => submitted[s]).map((slot) => ({
-      user_id: systemUserId,
-      tournament_id: tournamentId,
-      round: FINAL_ROUND_VALUE,
-      slot,
-      team_id: submitted[slot]!,
-      points: 0,
-    }));
-    if (partialRows.length > 0) {
-      await tx.insert(user_teams).values(partialRows);
-    }
+    // Each medal position is scored the moment it is confirmed — the bronze
+    // game is played before the final, so F3/F4 land before F1/F2. recomputeFinals
+    // re-seats the singleton's rows for the confirmed slots and rescores players
+    // per-slot (positions not yet official score 0 until confirmed).
+    const result = await recomputeFinals(tournamentId, systemUserId, submitted, tx);
+    rescored = result.rescored;
+    affectedUsers = result.affectedUsers;
   });
 
   log.info({
@@ -134,7 +112,7 @@ export async function confirmFinals(
     tournament_id: tournamentId,
     prior_slots: priorPicks,
     new_slots: submitted,
-    complete: isComplete,
+    confirmed_slots: confirmedSlots,
     predictions_rescored: rescored,
     affected_users: affectedUsers,
   });
@@ -142,5 +120,5 @@ export async function confirmFinals(
   revalidatePath('/admin/finals');
   revalidatePath('/leaderboard');
 
-  return { ok: true, rescored: isComplete ? rescored : undefined };
+  return { ok: true, rescored };
 }

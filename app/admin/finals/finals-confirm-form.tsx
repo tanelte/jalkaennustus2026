@@ -122,8 +122,8 @@ export function FinalsConfirmForm({
         </strong>
         {!allFilled && (
           <span className="ml-2 text-text-muted">
-            (saad salvestada ka osalise komplekti — ümberarvutus käivitub
-            alles siis, kui kõik neli on täidetud)
+            (salvestamisel arvutatakse punktid kohe kinnitatud kohtade eest —
+            ülejäänud kohad saad lisada hiljem)
           </span>
         )}
         {hasDuplicate && (

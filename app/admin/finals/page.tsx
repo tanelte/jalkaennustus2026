@@ -85,9 +85,9 @@ export default async function AdminFinalsPage() {
         <SectionHeader as="h1" icon={Medal} title="Finaali kinnitus" />
         <p className="text-sm text-text-muted">
           Märgi ametlikud medalivõitjad: F1 (kuld), F2 (hõbe), F3 (pronks),
-          F4 (neljas koht). Punktid arvutatakse ümber alles siis, kui kõik
-          neli kohta on täidetud — kuni selle hetkeni võid salvestada osalise
-          komplekti. Iga meeskond saab esineda ainult ühel kohal.
+          F4 (neljas koht). Iga koht arvutatakse punktideks kohe, kui selle
+          kinnitad — pronks ja neljas koht juba pärast 3. koha mängu, kuld ja
+          hõbe pärast finaali. Iga meeskond saab esineda ainult ühel kohal.
         </p>
         {completeness > 0 && (
           <p className="text-sm text-text-muted">
